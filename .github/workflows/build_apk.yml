@@ -1,0 +1,63 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Calcular versión
+        id: version
+        run: |
+          COMMIT_COUNT=$(git rev-list --count HEAD)
+          VERSION_NAME="1.${COMMIT_COUNT}"
+          echo "VERSION_CODE=${COMMIT_COUNT}" >> $GITHUB_OUTPUT
+          echo "VERSION_NAME=${VERSION_NAME}" >> $GITHUB_OUTPUT
+          echo "Versión: ${VERSION_NAME} (código: ${COMMIT_COUNT})"
+
+      - name: Dar permisos a gradlew
+        run: chmod +x gradlew
+
+      - name: Compilar APK Release
+        run: |
+          ./gradlew assembleRelease \
+            -PversionCode=${{ steps.version.outputs.VERSION_CODE }} \
+            -PversionName=${{ steps.version.outputs.VERSION_NAME }}
+
+      - name: Renombrar APK
+        run: |
+          mv app/build/outputs/apk/release/app-release.apk \
+             app/build/outputs/apk/release/BingoImperial-v${{ steps.version.outputs.VERSION_NAME }}.apk
+
+      - name: Publicar Release con APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION_NAME }}
+          name: "Bingo Imperial v${{ steps.version.outputs.VERSION_NAME }}"
+          body: |
+            ## Bingo Imperial v${{ steps.version.outputs.VERSION_NAME }}
+
+            Instalá esta APK en tu celular para tener la versión más reciente.
+
+            ### Cómo instalar
+            1. Descargá el archivo `.apk`
+            2. En el celular: Ajustes → Seguridad → activar "Fuentes desconocidas"
+            3. Abrí el archivo y tocá Instalar
+          files: app/build/outputs/apk/release/BingoImperial-v${{ steps.version.outputs.VERSION_NAME }}.apk
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

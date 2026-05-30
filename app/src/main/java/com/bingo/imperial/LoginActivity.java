@@ -41,6 +41,8 @@ public class LoginActivity extends AppCompatActivity {
         progressBar = findViewById(R.id.progressBar);
         tvError     = findViewById(R.id.tvError);
 
+        ((TextView) findViewById(R.id.tvVersion)).setText("v" + BuildConfig.VERSION_NAME);
+
         btnLogin.setOnClickListener(v -> intentarLogin());
     }
 

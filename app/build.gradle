@@ -2,6 +2,22 @@ plugins {
     id 'com.android.application'
 }
 
+def getGitCommitCount() {
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-list', '--count', 'HEAD'
+            standardOutput = stdout
+        }
+        return stdout.toString().trim().toInteger()
+    } catch (Exception e) {
+        return 1
+    }
+}
+
+def buildVersionCode = project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : getGitCommitCount()
+def buildVersionName = project.hasProperty('versionName') ? project.property('versionName') : "1.${getGitCommitCount()}"
+
 android {
     namespace 'com.bingo.imperial'
     compileSdk 34
@@ -10,8 +26,8 @@ android {
         applicationId "com.bingo.imperial"
         minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode buildVersionCode
+        versionName buildVersionName
     }
 
     buildTypes {
