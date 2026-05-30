@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="5dp"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="#fff">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:id="@+id/estadoBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="#226C63FF"
+            android:paddingStart="8dp" android:paddingEnd="8dp"
+            android:paddingTop="3dp" android:paddingBottom="3dp"
+            style="@style/Widget.Material3.Button.ElevatedButton">
+
+            <TextView
+                android:id="@+id/tvEstado"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="DISPONIBLE"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:textColor="@color/purple" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvNumero"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="#001"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/dark"
+            android:layout_marginTop="6dp" />
+
+        <TextView
+            android:id="@+id/tvComprador"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="@color/gray"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvPrecio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/teal"
+            android:visibility="gone" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

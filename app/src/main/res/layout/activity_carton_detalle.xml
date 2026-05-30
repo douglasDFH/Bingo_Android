@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/purple"
+            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent"
+        android:background="@color/bg">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="16dp">
+
+            <!-- Imagen -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent" android:layout_height="220dp"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="16dp" app:cardElevation="2dp">
+                <ImageView android:id="@+id/imageView"
+                    android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:scaleType="fitCenter" android:adjustViewBounds="true" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Info -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="16dp" app:cardElevation="2dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="16dp">
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:gravity="center_vertical">
+                        <TextView android:id="@+id/tvNumero"
+                            android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1" android:text="Cartón #001"
+                            android:textSize="22sp" android:textStyle="bold" android:textColor="@color/dark" />
+                        <TextView android:id="@+id/tvEstado"
+                            android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="DISPONIBLE" android:textSize="12sp" android:textStyle="bold"
+                            android:textColor="@color/green"
+                            android:background="@color/bg_green"
+                            android:paddingStart="10dp" android:paddingEnd="10dp"
+                            android:paddingTop="4dp" android:paddingBottom="4dp" />
+                    </LinearLayout>
+
+                    <!-- Info comprador -->
+                    <LinearLayout android:id="@+id/infoComprador"
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="vertical" android:visibility="gone"
+                        android:layout_marginTop="8dp">
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:orientation="horizontal" android:paddingTop="8dp">
+                            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                                android:layout_weight="1" android:text="Comprador"
+                                android:textSize="13sp" android:textColor="@color/gray" android:textStyle="bold" />
+                            <TextView android:id="@+id/tvComprador" android:layout_width="0dp"
+                                android:layout_height="wrap_content" android:layout_weight="1"
+                                android:textSize="13sp" android:textColor="@color/dark_text"
+                                android:gravity="end" />
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:orientation="horizontal" android:paddingTop="8dp">
+                            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                                android:layout_weight="1" android:text="Teléfono"
+                                android:textSize="13sp" android:textColor="@color/gray" android:textStyle="bold" />
+                            <TextView android:id="@+id/tvTelefono" android:layout_width="0dp"
+                                android:layout_height="wrap_content" android:layout_weight="1"
+                                android:textSize="13sp" android:textColor="@color/dark_text"
+                                android:gravity="end" />
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:orientation="horizontal" android:paddingTop="8dp">
+                            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                                android:layout_weight="1" android:text="Precio"
+                                android:textSize="13sp" android:textColor="@color/gray" android:textStyle="bold" />
+                            <TextView android:id="@+id/tvPrecio" android:layout_width="0dp"
+                                android:layout_height="wrap_content" android:layout_weight="1"
+                                android:textSize="13sp" android:textColor="@color/dark_text"
+                                android:gravity="end" />
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:orientation="horizontal" android:paddingTop="8dp">
+                            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                                android:layout_weight="1" android:text="Notas"
+                                android:textSize="13sp" android:textColor="@color/gray" android:textStyle="bold" />
+                            <TextView android:id="@+id/tvNotas" android:layout_width="0dp"
+                                android:layout_height="wrap_content" android:layout_weight="1"
+                                android:textSize="13sp" android:textColor="@color/dark_text"
+                                android:gravity="end" />
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:orientation="horizontal" android:paddingTop="8dp">
+                            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                                android:layout_weight="1" android:text="Fecha venta"
+                                android:textSize="13sp" android:textColor="@color/gray" android:textStyle="bold" />
+                            <TextView android:id="@+id/tvFecha" android:layout_width="0dp"
+                                android:layout_height="wrap_content" android:layout_weight="1"
+                                android:textSize="13sp" android:textColor="@color/dark_text"
+                                android:gravity="end" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Descargar -->
+            <Button android:id="@+id/btnDescargar"
+                android:layout_width="match_parent" android:layout_height="52dp"
+                android:text="⬇ Descargar imagen del cartón"
+                android:backgroundTint="@color/blue" android:textColor="#fff"
+                android:layout_marginBottom="10dp" />
+
+            <!-- Acciones -->
+            <Button android:id="@+id/btnVender"
+                android:layout_width="match_parent" android:layout_height="52dp"
+                android:text="Vender" android:backgroundTint="@color/red" android:textColor="#fff"
+                android:visibility="gone" android:layout_marginBottom="10dp" />
+            <Button android:id="@+id/btnReservar"
+                android:layout_width="match_parent" android:layout_height="52dp"
+                android:text="Reservar" android:backgroundTint="@color/amber" android:textColor="#fff"
+                android:visibility="gone" android:layout_marginBottom="10dp" />
+            <Button android:id="@+id/btnLiberar"
+                android:layout_width="match_parent" android:layout_height="52dp"
+                android:text="Liberar" android:backgroundTint="@color/gray" android:textColor="#fff"
+                android:visibility="gone" android:layout_marginBottom="32dp" />
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

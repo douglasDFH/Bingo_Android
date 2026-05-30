@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/purple"
+            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/bg">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- Error -->
+                <LinearLayout
+                    android:id="@+id/errorCard"
+                    android:visibility="gone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@color/bg_red"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                    android:padding="20dp"
+                    android:layout_marginBottom="16dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="⚠️" android:textSize="32sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="No se pudo conectar al servidor.\nAsegurate de que Flask esté corriendo."
+                        android:textColor="@color/red" android:textSize="13sp"
+                        android:gravity="center" android:layout_marginTop="8dp" />
+                </LinearLayout>
+
+                <!-- Stats -->
+                <LinearLayout
+                    android:id="@+id/statsContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Estadísticas" android:textSize="15sp" android:textStyle="bold"
+                        android:textColor="@color/dark" android:layout_marginTop="8dp" android:layout_marginBottom="12dp" />
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:layout_marginBottom="10dp">
+                        <com.google.android.material.card.MaterialCardView android:layout_width="0dp"
+                            android:layout_height="wrap_content" android:layout_weight="1"
+                            app:cardBackgroundColor="@color/bg_purple" app:cardCornerRadius="16dp" app:cardElevation="0dp">
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:orientation="vertical" android:padding="16dp">
+                                <TextView android:id="@+id/tvTotalCartones" android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" android:text="0"
+                                    android:textSize="28sp" android:textStyle="bold" android:textColor="@color/purple" />
+                                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:text="Total Cartones" android:textSize="12sp" android:textColor="@color/gray" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                        <View android:layout_width="10dp" android:layout_height="1dp" />
+                        <com.google.android.material.card.MaterialCardView android:layout_width="0dp"
+                            android:layout_height="wrap_content" android:layout_weight="1"
+                            app:cardBackgroundColor="@color/bg_green" app:cardCornerRadius="16dp" app:cardElevation="0dp">
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:orientation="vertical" android:padding="16dp">
+                                <TextView android:id="@+id/tvDisponibles" android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" android:text="0"
+                                    android:textSize="28sp" android:textStyle="bold" android:textColor="@color/green" />
+                                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:text="Disponibles" android:textSize="12sp" android:textColor="@color/gray" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:layout_marginBottom="10dp">
+                        <com.google.android.material.card.MaterialCardView android:layout_width="0dp"
+                            android:layout_height="wrap_content" android:layout_weight="1"
+                            app:cardBackgroundColor="@color/bg_red" app:cardCornerRadius="16dp" app:cardElevation="0dp">
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:orientation="vertical" android:padding="16dp">
+                                <TextView android:id="@+id/tvVendidos" android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" android:text="0"
+                                    android:textSize="28sp" android:textStyle="bold" android:textColor="@color/red" />
+                                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:text="Vendidos" android:textSize="12sp" android:textColor="@color/gray" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                        <View android:layout_width="10dp" android:layout_height="1dp" />
+                        <com.google.android.material.card.MaterialCardView android:layout_width="0dp"
+                            android:layout_height="wrap_content" android:layout_weight="1"
+                            app:cardBackgroundColor="@color/bg_amber" app:cardCornerRadius="16dp" app:cardElevation="0dp">
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:orientation="vertical" android:padding="16dp">
+                                <TextView android:id="@+id/tvReservados" android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" android:text="0"
+                                    android:textSize="28sp" android:textStyle="bold" android:textColor="@color/amber" />
+                                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:text="Reservados" android:textSize="12sp" android:textColor="@color/gray" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:layout_marginBottom="10dp">
+                        <com.google.android.material.card.MaterialCardView android:layout_width="0dp"
+                            android:layout_height="wrap_content" android:layout_weight="1"
+                            app:cardBackgroundColor="@color/bg_blue" app:cardCornerRadius="16dp" app:cardElevation="0dp">
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:orientation="vertical" android:padding="16dp">
+                                <TextView android:id="@+id/tvPdfs" android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" android:text="0"
+                                    android:textSize="28sp" android:textStyle="bold" android:textColor="@color/blue" />
+                                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:text="PDFs cargados" android:textSize="12sp" android:textColor="@color/gray" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                        <View android:layout_width="10dp" android:layout_height="1dp" />
+                        <com.google.android.material.card.MaterialCardView android:layout_width="0dp"
+                            android:layout_height="wrap_content" android:layout_weight="1"
+                            app:cardBackgroundColor="@color/bg_teal" app:cardCornerRadius="16dp" app:cardElevation="0dp">
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:orientation="vertical" android:padding="16dp">
+                                <TextView android:id="@+id/tvIngresos" android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" android:text="$0.00"
+                                    android:textSize="24sp" android:textStyle="bold" android:textColor="@color/teal" />
+                                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:text="Ingresos" android:textSize="12sp" android:textColor="@color/gray" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
+
+                    <!-- Acciones -->
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Acciones rápidas" android:textSize="15sp" android:textStyle="bold"
+                        android:textColor="@color/dark" android:layout_marginTop="8dp" android:layout_marginBottom="12dp" />
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:layout_marginBottom="10dp">
+                        <Button android:id="@+id/btnSubirPDF" android:layout_width="0dp" android:layout_height="72dp"
+                            android:layout_weight="1" android:text="📄 Subir PDF"
+                            android:backgroundTint="@color/purple" android:textColor="#fff" />
+                        <View android:layout_width="10dp" android:layout_height="1dp" />
+                        <Button android:id="@+id/btnVerCartones" android:layout_width="0dp" android:layout_height="72dp"
+                            android:layout_weight="1" android:text="🎴 Ver Cartones"
+                            android:backgroundTint="@color/green" android:textColor="#fff" />
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="horizontal" android:layout_marginBottom="10dp">
+                        <Button android:id="@+id/btnBuscar" android:layout_width="0dp" android:layout_height="72dp"
+                            android:layout_weight="1" android:text="🔍 Buscar"
+                            android:backgroundTint="@color/blue" android:textColor="#fff" />
+                        <View android:layout_width="10dp" android:layout_height="1dp" />
+                        <Button android:id="@+id/btnDisponibles" android:layout_width="0dp" android:layout_height="72dp"
+                            android:layout_weight="1" android:text="✅ Disponibles"
+                            android:backgroundTint="@color/green" android:textColor="#fff" />
+                    </LinearLayout>
+
+                    <Button android:id="@+id/btnVendidos" android:layout_width="match_parent"
+                        android:layout_height="72dp" android:text="🛒 Vendidos"
+                        android:backgroundTint="@color/red" android:textColor="#fff"
+                        android:layout_marginBottom="32dp" />
+
+                </LinearLayout>
+            </LinearLayout>
+        </ScrollView>
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+</LinearLayout>

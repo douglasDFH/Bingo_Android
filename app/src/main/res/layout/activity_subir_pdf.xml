@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/purple"
+            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent"
+        android:background="@color/bg">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="16dp">
+
+            <!-- Selector PDF -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardArchivo"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp" android:clickable="true" android:focusable="true"
+                app:cardCornerRadius="20dp" app:cardElevation="2dp"
+                app:strokeColor="@color/gray_light" app:strokeWidth="2dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:gravity="center"
+                    android:padding="32dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="📂" android:textSize="48sp" />
+                    <TextView android:id="@+id/tvNombreArchivo"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Seleccionar PDF" android:textSize="16sp"
+                        android:textStyle="bold" android:textColor="@color/dark"
+                        android:layout_marginTop="8dp" android:gravity="center" />
+                    <TextView android:id="@+id/tvTamano"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Toca para elegir un archivo PDF"
+                        android:textSize="13sp" android:textColor="@color/gray"
+                        android:gravity="center" android:layout_marginTop="4dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Botón subir -->
+            <LinearLayout android:id="@+id/btnSubirWrap"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:visibility="gone" android:layout_marginBottom="12dp">
+                <Button android:id="@+id/btnSubir"
+                    android:layout_width="match_parent" android:layout_height="52dp"
+                    android:text="⬆ Subir y Procesar PDF"
+                    android:backgroundTint="@color/purple" android:textColor="#fff"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Progreso -->
+            <LinearLayout android:id="@+id/progressCard"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:visibility="gone" android:orientation="vertical"
+                android:background="@color/bg_purple" android:padding="16dp"
+                android:gravity="center" android:layout_marginBottom="12dp">
+                <ProgressBar android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:indeterminateTint="@color/purple" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Extrayendo cartones del PDF...\nEsto puede tardar según el tamaño."
+                    android:textColor="@color/purple" android:textSize="13sp"
+                    android:gravity="center" android:layout_marginTop="8dp" />
+            </LinearLayout>
+
+            <!-- Resultado -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/resultCard"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:visibility="gone" android:layout_marginBottom="12dp"
+                app:cardBackgroundColor="@color/bg_green"
+                app:cardCornerRadius="20dp" app:cardElevation="0dp"
+                app:strokeColor="#BBF7D0" app:strokeWidth="1dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:gravity="center"
+                    android:padding="24dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="✅" android:textSize="40sp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="PDF procesado" android:textSize="18sp"
+                        android:textStyle="bold" android:textColor="#15803D" android:layout_marginTop="4dp" />
+                    <TextView android:id="@+id/tvResultNombre"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textSize="13sp" android:textColor="@color/gray" android:layout_marginBottom="8dp" />
+                    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:orientation="vertical" android:gravity="center" android:layout_marginEnd="16dp">
+                            <TextView android:id="@+id/tvResultTotal"
+                                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="0" android:textSize="24sp" android:textStyle="bold"
+                                android:textColor="@color/dark" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="Total páginas" android:textSize="11sp" android:textColor="@color/gray" />
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:orientation="vertical" android:gravity="center" android:layout_marginEnd="16dp">
+                            <TextView android:id="@+id/tvResultNuevos"
+                                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="0" android:textSize="24sp" android:textStyle="bold"
+                                android:textColor="@color/green" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="Cartones nuevos" android:textSize="11sp" android:textColor="@color/gray" />
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:orientation="vertical" android:gravity="center">
+                            <TextView android:id="@+id/tvResultErrores"
+                                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="0" android:textSize="24sp" android:textStyle="bold"
+                                android:textColor="@color/gray" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="Errores" android:textSize="11sp" android:textColor="@color/gray" />
+                        </LinearLayout>
+                    </LinearLayout>
+                    <Button android:id="@+id/btnVerCartones"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Ver cartones →"
+                        android:backgroundTint="@color/green" android:textColor="#fff"
+                        android:layout_marginTop="12dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Ayuda -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginBottom="32dp"
+                app:cardCornerRadius="16dp" app:cardElevation="2dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="20dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="¿Cómo funciona?" android:textSize="14sp"
+                        android:textStyle="bold" android:textColor="@color/dark" android:layout_marginBottom="8dp" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="1. Elegí el PDF con los cartones de bingo" android:textSize="13sp" android:textColor="@color/gray" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="2. La app lo envía al servidor" android:textSize="13sp" android:textColor="@color/gray" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="3. Se extrae el número de cada página" android:textSize="13sp" android:textColor="@color/gray" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="4. Se genera una imagen por cartón" android:textSize="13sp" android:textColor="@color/gray" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="5. Los cartones quedan disponibles para vender" android:textSize="13sp" android:textColor="@color/gray" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
