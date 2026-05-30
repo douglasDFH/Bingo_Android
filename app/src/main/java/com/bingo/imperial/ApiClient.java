@@ -1,9 +1,8 @@
 package com.bingo.imperial;
 
-import android.content.Context;
-
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.Call;
 import okhttp3.MediaType;
@@ -15,7 +14,18 @@ import okhttp3.Response;
 
 public class ApiClient {
 
-    private static final OkHttpClient client = new OkHttpClient();
+    private static final OkHttpClient client = new OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .build();
+
+    // Cliente con timeouts extendidos solo para subir archivos grandes
+    private static final OkHttpClient uploadClient = new OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.MINUTES)
+            .readTimeout(10, TimeUnit.MINUTES)
+            .build();
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
     private static String token = null;
@@ -67,7 +77,7 @@ public class ApiClient {
                 .addFormDataPart("pdf", file.getName(), fileBody)
                 .build();
         Request request = baseRequest(Config.BASE_URL + "/subir-pdf").post(body).build();
-        client.newCall(request).enqueue(new okhttp3.Callback() {
+        uploadClient.newCall(request).enqueue(new okhttp3.Callback() {
             @Override public void onFailure(Call call, IOException e) {
                 callback.onError(e.getMessage());
             }
