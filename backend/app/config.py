@@ -5,7 +5,9 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'cambia-esto-en-produccion')
+    SECRET_KEY     = os.environ.get('SECRET_KEY', 'cambia-esto-en-produccion')
+    JWT_SECRET_KEY = os.environ.get('SECRET_KEY', 'cambia-esto-en-produccion')
+    JWT_ACCESS_TOKEN_EXPIRES = 60 * 60 * 24 * 30  # 30 días
 
     # SQLite local en la carpeta instance/
     SQLALCHEMY_DATABASE_URI = (

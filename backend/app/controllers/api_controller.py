@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from flask import Blueprint, jsonify, request, current_app
+from flask_jwt_extended import jwt_required
 from sqlalchemy import func, or_
 from werkzeug.utils import secure_filename
 from ..models import db
@@ -12,6 +13,12 @@ from ..models.carton import Carton
 from ..services.pdf_processor import PDFProcessor, PDFProcessorError
 
 api_bp = Blueprint('api', __name__)
+
+
+@api_bp.before_request
+@jwt_required()
+def require_auth():
+    pass
 
 
 @api_bp.route('/dashboard')

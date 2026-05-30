@@ -1,5 +1,7 @@
 package com.bingo.imperial;
 
+import android.content.Context;
+
 import java.io.File;
 import java.io.IOException;
 
@@ -16,15 +18,23 @@ public class ApiClient {
     private static final OkHttpClient client = new OkHttpClient();
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
+    private static String token = null;
+
+    public static void setToken(String t) { token = t; }
+
     public interface Callback {
         void onSuccess(String body);
         void onError(String error);
     }
 
+    private static Request.Builder baseRequest(String url) {
+        Request.Builder builder = new Request.Builder().url(url);
+        if (token != null) builder.header("Authorization", "Bearer " + token);
+        return builder;
+    }
+
     public static void get(String path, Callback callback) {
-        Request request = new Request.Builder()
-                .url(Config.BASE_URL + path)
-                .build();
+        Request request = baseRequest(Config.BASE_URL + path).build();
         client.newCall(request).enqueue(new okhttp3.Callback() {
             @Override public void onFailure(Call call, IOException e) {
                 callback.onError(e.getMessage());
@@ -38,10 +48,7 @@ public class ApiClient {
 
     public static void post(String path, String jsonBody, Callback callback) {
         RequestBody body = RequestBody.create(jsonBody, JSON);
-        Request request = new Request.Builder()
-                .url(Config.BASE_URL + path)
-                .post(body)
-                .build();
+        Request request = baseRequest(Config.BASE_URL + path).post(body).build();
         client.newCall(request).enqueue(new okhttp3.Callback() {
             @Override public void onFailure(Call call, IOException e) {
                 callback.onError(e.getMessage());
@@ -59,10 +66,7 @@ public class ApiClient {
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("pdf", file.getName(), fileBody)
                 .build();
-        Request request = new Request.Builder()
-                .url(Config.BASE_URL + "/subir-pdf")
-                .post(body)
-                .build();
+        Request request = baseRequest(Config.BASE_URL + "/subir-pdf").post(body).build();
         client.newCall(request).enqueue(new okhttp3.Callback() {
             @Override public void onFailure(Call call, IOException e) {
                 callback.onError(e.getMessage());
