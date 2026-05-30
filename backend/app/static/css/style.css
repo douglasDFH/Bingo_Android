@@ -1,0 +1,280 @@
+/* Bingo Imperial - estilos base */
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f4f6fa;
+    color: #1f2937;
+}
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+/* Navbar */
+.navbar {
+    background: linear-gradient(90deg, #111827 0%, #1f2937 100%);
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.navbar .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 64px;
+}
+.brand {
+    text-decoration: none;
+    color: #fff;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+.brand-mark {
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: 1px;
+    color: #fbbf24;
+}
+.brand-sub {
+    font-size: 14px;
+    color: #d1d5db;
+}
+.navbar nav a {
+    color: #d1d5db;
+    text-decoration: none;
+    margin-left: 18px;
+    font-size: 15px;
+}
+.navbar nav a:hover { color: #fff; }
+.btn-nav {
+    background: #fbbf24;
+    color: #111827 !important;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+/* General */
+h1 { margin-top: 24px; }
+h2 { margin-top: 20px; }
+.muted { color: #6b7280; }
+.page-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 24px;
+}
+
+.card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+}
+
+/* Stats */
+.grid-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+}
+.stat-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border-left: 4px solid #6b7280;
+}
+.stat-num { font-size: 28px; font-weight: 700; }
+.stat-label { color: #6b7280; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-ok { border-left-color: #10b981; }
+.stat-sold { border-left-color: #ef4444; }
+.stat-reserved { border-left-color: #f59e0b; }
+.stat-money { border-left-color: #6366f1; }
+
+/* Buttons */
+.btn, button.btn {
+    display: inline-block;
+    background: #e5e7eb;
+    color: #1f2937;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+}
+.btn:hover { background: #d1d5db; }
+.btn-primary { background: #2563eb; color: #fff; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-danger { background: #ef4444; color: #fff; }
+.btn-danger:hover { background: #dc2626; }
+.btn-link { color: #2563eb; text-decoration: none; }
+.btn-link:hover { text-decoration: underline; }
+
+/* Forms */
+.form label { display: block; margin-top: 12px; font-weight: 500; }
+.form input[type=text],
+.form input[type=number],
+.form input[type=file],
+.form textarea,
+.form select {
+    width: 100%;
+    padding: 8px 10px;
+    margin-top: 4px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+}
+.form textarea { min-height: 80px; }
+.form button { margin-top: 16px; }
+.form-inline {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+.form-inline input {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+}
+
+/* Tablas */
+.tabla {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.tabla th, .tabla td {
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+.tabla th {
+    background: #f9fafb;
+    font-weight: 600;
+    font-size: 13px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.tabla tr:hover { background: #f9fafb; }
+
+/* Badges */
+.badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #e5e7eb;
+    color: #374151;
+    text-transform: capitalize;
+}
+.badge-disponible { background: #d1fae5; color: #065f46; }
+.badge-vendido { background: #fee2e2; color: #991b1b; }
+.badge-reservado { background: #fef3c7; color: #92400e; }
+
+/* Flash */
+.flash-list { margin-top: 16px; }
+.flash {
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+.flash-success { background: #d1fae5; color: #065f46; }
+.flash-error { background: #fee2e2; color: #991b1b; }
+
+/* Grid de miniaturas */
+.grid-thumbs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 14px;
+    margin-top: 14px;
+}
+.thumb {
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.1s;
+}
+.thumb:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+.thumb img { width: 100%; aspect-ratio: 3/4; object-fit: cover; background: #f3f4f6; }
+.thumb-cap {
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+}
+
+/* Detalle */
+.detalle-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+    gap: 24px;
+    margin-top: 20px;
+}
+.detalle-img {
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.detalle-img img { width: 100%; display: block; }
+@media (max-width: 900px) {
+    .detalle-grid { grid-template-columns: 1fr; }
+}
+
+/* Filtro */
+.filter-bar {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.filter-bar input[type=text],
+.filter-bar select {
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+}
+.filter-bar input[type=text] { flex: 1; min-width: 200px; }
+
+/* Paginación */
+.paginacion {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    margin: 24px 0;
+}
+
+.mt-1 { margin-top: 12px; }
+
+/* Footer */
+.footer {
+    margin-top: 40px;
+    padding: 20px 0;
+    background: #fff;
+    border-top: 1px solid #e5e7eb;
+    color: #6b7280;
+    text-align: center;
+}

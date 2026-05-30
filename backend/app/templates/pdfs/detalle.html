@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}{{ pdf.nombre_archivo }} · Bingo Imperial{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>{{ pdf.nombre_archivo }}</h1>
+    <form method="post" action="{{ url_for('pdf.eliminar', pdf_id=pdf.id) }}"
+          onsubmit="return confirm('Eliminar este PDF y todos sus cartones?');">
+        <button class="btn btn-danger" type="submit">Eliminar</button>
+    </form>
+</div>
+
+<div class="grid-stats">
+    <div class="stat-card">
+        <div class="stat-num">{{ pdf.total_paginas }}</div>
+        <div class="stat-label">Páginas</div>
+    </div>
+    <div class="stat-card stat-ok">
+        <div class="stat-num">{{ pdf.paginas_ok }}</div>
+        <div class="stat-label">OK</div>
+    </div>
+    <div class="stat-card stat-sold">
+        <div class="stat-num">{{ pdf.paginas_error }}</div>
+        <div class="stat-label">Errores</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">{{ pdf.dpi }}</div>
+        <div class="stat-label">DPI</div>
+    </div>
+</div>
+
+<section class="card">
+    <h2>Información</h2>
+    <p><strong>Fecha:</strong> {{ pdf.fecha_procesado.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+    <p><strong>Estado:</strong> <span class="badge">{{ pdf.estado }}</span></p>
+    {% if pdf.carpeta_imagenes %}
+        <p><strong>Carpeta de imágenes:</strong> <code>{{ pdf.carpeta_imagenes }}</code></p>
+    {% endif %}
+    {% if pdf.mensaje_error %}
+        <p class="flash flash-error">{{ pdf.mensaje_error }}</p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>Primeros cartones ({{ cartones|length }} de {{ total_cartones }})</h2>
+    <div class="grid-thumbs">
+        {% for c in cartones %}
+            <a class="thumb" href="{{ url_for('carton.detalle', carton_id=c.id) }}">
+                <img src="{{ url_for('carton.imagen', carton_id=c.id) }}" alt="{{ c.numero }}" loading="lazy">
+                <div class="thumb-cap">
+                    <strong>{{ c.numero }}</strong>
+                    <span class="badge badge-{{ c.estado }}">{{ c.estado }}</span>
+                </div>
+            </a>
+        {% endfor %}
+    </div>
+    <p><a class="btn-link" href="{{ url_for('carton.listar') }}">Ver todos los cartones</a></p>
+</section>
+{% endblock %}

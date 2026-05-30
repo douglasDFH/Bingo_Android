@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard · Bingo Imperial{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<div class="grid-stats">
+    <div class="stat-card">
+        <div class="stat-num">{{ total_pdfs }}</div>
+        <div class="stat-label">PDFs procesados</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-num">{{ total_cartones }}</div>
+        <div class="stat-label">Total cartones</div>
+    </div>
+    <div class="stat-card stat-ok">
+        <div class="stat-num">{{ disponibles }}</div>
+        <div class="stat-label">Disponibles</div>
+    </div>
+    <div class="stat-card stat-sold">
+        <div class="stat-num">{{ vendidos }}</div>
+        <div class="stat-label">Vendidos</div>
+    </div>
+    <div class="stat-card stat-reserved">
+        <div class="stat-num">{{ reservados }}</div>
+        <div class="stat-label">Reservados</div>
+    </div>
+    <div class="stat-card stat-money">
+        <div class="stat-num">${{ '%.2f' % ingresos }}</div>
+        <div class="stat-label">Ingresos</div>
+    </div>
+</div>
+
+<section class="card">
+    <h2>Últimos PDFs procesados</h2>
+    {% if ultimos_pdfs %}
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Archivo</th>
+                    <th>Fecha</th>
+                    <th>Páginas OK</th>
+                    <th>Errores</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in ultimos_pdfs %}
+                <tr>
+                    <td>{{ p.nombre_archivo }}</td>
+                    <td>{{ p.fecha_procesado.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>{{ p.paginas_ok }}</td>
+                    <td>{{ p.paginas_error }}</td>
+                    <td><span class="badge">{{ p.estado }}</span></td>
+                    <td><a class="btn-link" href="{{ url_for('pdf.detalle', pdf_id=p.id) }}">Ver</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="muted">Aún no hay PDFs procesados.
+            <a href="{{ url_for('pdf.subir') }}">Sube el primero</a>.
+        </p>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Subir PDF · Bingo Imperial{% endblock %}
+{% block content %}
+<h1>Subir PDF</h1>
+
+<form method="post" enctype="multipart/form-data" class="card form">
+    <label for="pdf">Archivo PDF</label>
+    <input type="file" id="pdf" name="pdf" accept="application/pdf" required>
+    <p class="muted">El sistema generará una imagen JPG por cada página, usando el número del pie como nombre del archivo, y registrará cada cartón en la base de datos.</p>
+    <button type="submit" class="btn btn-primary">Procesar</button>
+</form>
+{% endblock %}

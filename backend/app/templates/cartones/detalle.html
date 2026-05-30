@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}Cartón {{ carton.numero }} · Bingo Imperial{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>Cartón #{{ carton.numero }}</h1>
+    <span class="badge badge-{{ carton.estado }}">{{ carton.estado }}</span>
+</div>
+
+<div class="detalle-grid">
+    <div class="detalle-img">
+        <img src="{{ url_for('carton.imagen', carton_id=carton.id) }}" alt="Cartón {{ carton.numero }}">
+    </div>
+
+    <div class="detalle-info card">
+        <h2>Información</h2>
+        <p><strong>Número:</strong> {{ carton.numero }}</p>
+        <p><strong>Estado:</strong> {{ carton.estado }}</p>
+        <p><strong>Página en PDF:</strong> {{ carton.pagina_origen }}</p>
+        {% if carton.comprador %}
+            <p><strong>Comprador:</strong> {{ carton.comprador }}</p>
+        {% endif %}
+        {% if carton.telefono_comprador %}
+            <p><strong>Teléfono:</strong> {{ carton.telefono_comprador }}</p>
+        {% endif %}
+        {% if carton.precio %}
+            <p><strong>Precio:</strong> ${{ '%.2f' % carton.precio|float }}</p>
+        {% endif %}
+        {% if carton.fecha_venta %}
+            <p><strong>Fecha venta:</strong> {{ carton.fecha_venta.strftime('%Y-%m-%d %H:%M') }}</p>
+        {% endif %}
+        {% if carton.notas %}
+            <p><strong>Notas:</strong> {{ carton.notas }}</p>
+        {% endif %}
+
+        <hr>
+
+        {% if carton.estado != 'vendido' %}
+        <h3>Marcar como vendido</h3>
+        <form method="post" action="{{ url_for('carton.vender', carton_id=carton.id) }}" class="form">
+            <label>Comprador <input type="text" name="comprador" value="{{ carton.comprador or '' }}"></label>
+            <label>Teléfono <input type="text" name="telefono" value="{{ carton.telefono_comprador or '' }}"></label>
+            <label>Precio <input type="number" step="0.01" name="precio" value="{{ carton.precio or '' }}"></label>
+            <label>Notas <textarea name="notas">{{ carton.notas or '' }}</textarea></label>
+            <button class="btn btn-primary" type="submit">Marcar vendido</button>
+        </form>
+
+        {% if carton.estado == 'disponible' %}
+        <form method="post" action="{{ url_for('carton.reservar', carton_id=carton.id) }}" class="form-inline">
+            <input type="text" name="comprador" placeholder="Reservar para...">
+            <input type="text" name="telefono" placeholder="Teléfono">
+            <button class="btn" type="submit">Reservar</button>
+        </form>
+        {% endif %}
+
+        {% else %}
+        <form method="post" action="{{ url_for('carton.liberar', carton_id=carton.id) }}">
+            <button class="btn" type="submit">Revertir a disponible</button>
+        </form>
+        {% endif %}
+
+        {% if carton.estado != 'disponible' %}
+        <form method="post" action="{{ url_for('carton.liberar', carton_id=carton.id) }}" class="mt-1">
+            <button class="btn btn-danger" type="submit">Liberar / cancelar</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<p><a class="btn-link" href="{{ url_for('carton.listar') }}">« Volver al listado</a></p>
+{% endblock %}

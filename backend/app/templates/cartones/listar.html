@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}Cartones · Bingo Imperial{% endblock %}
+{% block content %}
+<h1>Cartones <small class="muted">({{ total }})</small></h1>
+
+<form method="get" class="filter-bar">
+    <input type="text" name="q" placeholder="Buscar por número o comprador..." value="{{ busqueda }}">
+    <select name="estado">
+        <option value="">Todos los estados</option>
+        <option value="disponible" {% if estado=='disponible' %}selected{% endif %}>Disponibles</option>
+        <option value="vendido" {% if estado=='vendido' %}selected{% endif %}>Vendidos</option>
+        <option value="reservado" {% if estado=='reservado' %}selected{% endif %}>Reservados</option>
+    </select>
+    <button class="btn">Filtrar</button>
+    {% if busqueda or estado %}
+        <a class="btn-link" href="{{ url_for('carton.listar') }}">Limpiar</a>
+    {% endif %}
+</form>
+
+{% if cartones %}
+<div class="grid-thumbs">
+    {% for c in cartones %}
+        <a class="thumb" href="{{ url_for('carton.detalle', carton_id=c.id) }}">
+            <img src="{{ url_for('carton.imagen', carton_id=c.id) }}" alt="{{ c.numero }}" loading="lazy">
+            <div class="thumb-cap">
+                <strong>{{ c.numero }}</strong>
+                <span class="badge badge-{{ c.estado }}">{{ c.estado }}</span>
+            </div>
+        </a>
+    {% endfor %}
+</div>
+
+{% if total_paginas > 1 %}
+<nav class="paginacion">
+    {% if page > 1 %}
+        <a class="btn-link" href="{{ url_for('carton.listar', page=page-1, q=busqueda, estado=estado) }}">« Anterior</a>
+    {% endif %}
+    <span class="muted">Página {{ page }} de {{ total_paginas }}</span>
+    {% if page < total_paginas %}
+        <a class="btn-link" href="{{ url_for('carton.listar', page=page+1, q=busqueda, estado=estado) }}">Siguiente »</a>
+    {% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<p class="muted">No hay cartones que coincidan.</p>
+{% endif %}
+{% endblock %}

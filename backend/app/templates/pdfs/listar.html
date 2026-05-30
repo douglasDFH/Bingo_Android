@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}PDFs · Bingo Imperial{% endblock %}
+{% block content %}
+<div class="page-head">
+    <h1>PDFs procesados</h1>
+    <a class="btn" href="{{ url_for('pdf.subir') }}">+ Subir nuevo PDF</a>
+</div>
+
+{% if pdfs %}
+<table class="tabla">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Archivo</th>
+            <th>Fecha</th>
+            <th>Páginas</th>
+            <th>OK</th>
+            <th>Errores</th>
+            <th>Estado</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in pdfs %}
+        <tr>
+            <td>{{ p.id }}</td>
+            <td>{{ p.nombre_archivo }}</td>
+            <td>{{ p.fecha_procesado.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>{{ p.total_paginas }}</td>
+            <td>{{ p.paginas_ok }}</td>
+            <td>{{ p.paginas_error }}</td>
+            <td><span class="badge">{{ p.estado }}</span></td>
+            <td><a class="btn-link" href="{{ url_for('pdf.detalle', pdf_id=p.id) }}">Ver</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="muted">Sin PDFs todavía.</p>
+{% endif %}
+{% endblock %}
