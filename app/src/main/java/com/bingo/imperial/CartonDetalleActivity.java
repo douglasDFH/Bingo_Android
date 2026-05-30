@@ -115,7 +115,7 @@ public class CartonDetalleActivity extends AppCompatActivity {
         }
         tvEstado.setTextColor(color);
 
-        String comprador = carton.optString("comprador", "");
+        String comprador = carton.isNull("comprador") ? "" : carton.optString("comprador", "");
         if (!comprador.isEmpty()) {
             infoComprador.setVisibility(View.VISIBLE);
             tvComprador.setText(comprador);

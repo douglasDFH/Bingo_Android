@@ -38,7 +38,7 @@ public class CartonAdapter extends RecyclerView.Adapter<CartonAdapter.ViewHolder
         try {
             String estado    = item.optString("estado", "");
             String numero    = item.optString("numero", "");
-            String comprador = item.optString("comprador", "");
+            String comprador = item.isNull("comprador") ? "" : item.optString("comprador", "");
             double precio    = item.optDouble("precio", 0);
 
             h.tvNumero.setText("#" + numero);
