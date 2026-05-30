@@ -25,9 +25,12 @@ public class SubirPDFActivity extends AppCompatActivity {
 
     private Uri pdfUri;
     private View cardArchivo, progressCard, resultCard, btnSubirWrap;
-    private TextView tvNombreArchivo, tvTamano, tvResultNombre, tvResultTotal, tvResultNuevos, tvResultErrores;
+    private TextView tvNombreArchivo, tvTamano, tvProgreso;
+    private TextView tvResultNombre, tvResultTotal, tvResultNuevos, tvResultErrores;
     private Button btnSubir;
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private int pdfId = -1;
+    private Runnable pollingRunnable;
 
     private final ActivityResultLauncher<String[]> picker =
             registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
@@ -50,6 +53,7 @@ public class SubirPDFActivity extends AppCompatActivity {
         btnSubirWrap     = findViewById(R.id.btnSubirWrap);
         tvNombreArchivo  = findViewById(R.id.tvNombreArchivo);
         tvTamano         = findViewById(R.id.tvTamano);
+        tvProgreso       = findViewById(R.id.tvProgreso);
         tvResultNombre   = findViewById(R.id.tvResultNombre);
         tvResultTotal    = findViewById(R.id.tvResultTotal);
         tvResultNuevos   = findViewById(R.id.tvResultNuevos);
@@ -84,6 +88,7 @@ public class SubirPDFActivity extends AppCompatActivity {
         if (pdfUri == null) return;
         btnSubir.setEnabled(false);
         progressCard.setVisibility(View.VISIBLE);
+        tvProgreso.setText("Subiendo archivo...");
         resultCard.setVisibility(View.GONE);
 
         new Thread(() -> {
@@ -91,7 +96,7 @@ public class SubirPDFActivity extends AppCompatActivity {
                 InputStream is = getContentResolver().openInputStream(pdfUri);
                 File temp = File.createTempFile("upload", ".pdf", getCacheDir());
                 FileOutputStream fos = new FileOutputStream(temp);
-                byte[] buf = new byte[4096];
+                byte[] buf = new byte[8192];
                 int len;
                 while ((len = is.read(buf)) != -1) fos.write(buf, 0, len);
                 fos.close();
@@ -103,34 +108,90 @@ public class SubirPDFActivity extends AppCompatActivity {
                         handler.post(() -> {
                             try {
                                 JSONObject j = new JSONObject(body);
-                                progressCard.setVisibility(View.GONE);
-                                resultCard.setVisibility(View.VISIBLE);
-                                btnSubirWrap.setVisibility(View.GONE);
-                                btnSubir.setEnabled(true);
-                                tvResultNombre.setText(j.optString("nombre", ""));
-                                tvResultTotal.setText(String.valueOf(j.optInt("total")));
-                                tvResultNuevos.setText(String.valueOf(j.optInt("cartones_creados")));
-                                tvResultErrores.setText(String.valueOf(j.optInt("errores")));
-                            } catch (Exception ignored) {}
+                                pdfId = j.getInt("pdf_id");
+                                tvProgreso.setText("Procesando páginas... esto puede tardar unos minutos.");
+                                iniciarPolling();
+                            } catch (Exception e) {
+                                mostrarError("Error al iniciar procesamiento");
+                            }
                         });
                     }
                     @Override
                     public void onError(String error) {
-                        handler.post(() -> {
-                            progressCard.setVisibility(View.GONE);
-                            btnSubir.setEnabled(true);
-                            Toast.makeText(SubirPDFActivity.this, "Error: " + error, Toast.LENGTH_LONG).show();
-                        });
+                        handler.post(() -> mostrarError("Error al subir: " + error));
                     }
                 });
             } catch (Exception e) {
-                handler.post(() -> {
-                    progressCard.setVisibility(View.GONE);
-                    btnSubir.setEnabled(true);
-                    Toast.makeText(SubirPDFActivity.this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                });
+                handler.post(() -> mostrarError("Error: " + e.getMessage()));
             }
         }).start();
+    }
+
+    private void iniciarPolling() {
+        pollingRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (pdfId < 0) return;
+                ApiClient.get("/pdfs/" + pdfId + "/estado", new ApiClient.Callback() {
+                    @Override
+                    public void onSuccess(String body) {
+                        handler.post(() -> {
+                            try {
+                                JSONObject j = new JSONObject(body);
+                                String estado = j.optString("estado", "");
+                                switch (estado) {
+                                    case "procesando":
+                                        tvProgreso.setText("Procesando páginas... esto puede tardar unos minutos.");
+                                        handler.postDelayed(pollingRunnable, 3000);
+                                        break;
+                                    case "completado":
+                                    case "completado_con_errores":
+                                        mostrarResultado(j);
+                                        break;
+                                    case "error":
+                                        mostrarError("Error al procesar: " + j.optString("mensaje_error", ""));
+                                        break;
+                                    default:
+                                        handler.postDelayed(pollingRunnable, 3000);
+                                }
+                            } catch (Exception e) {
+                                handler.postDelayed(pollingRunnable, 3000);
+                            }
+                        });
+                    }
+                    @Override
+                    public void onError(String error) {
+                        handler.postDelayed(pollingRunnable, 5000);
+                    }
+                });
+            }
+        };
+        handler.postDelayed(pollingRunnable, 3000);
+    }
+
+    private void mostrarResultado(JSONObject j) {
+        try {
+            progressCard.setVisibility(View.GONE);
+            resultCard.setVisibility(View.VISIBLE);
+            btnSubirWrap.setVisibility(View.GONE);
+            btnSubir.setEnabled(true);
+            tvResultNombre.setText(j.optString("nombre_archivo", ""));
+            tvResultTotal.setText(String.valueOf(j.optInt("total_paginas")));
+            tvResultNuevos.setText(String.valueOf(j.optInt("cartones_creados")));
+            tvResultErrores.setText(String.valueOf(j.optInt("errores")));
+        } catch (Exception ignored) {}
+    }
+
+    private void mostrarError(String msg) {
+        progressCard.setVisibility(View.GONE);
+        btnSubir.setEnabled(true);
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (pollingRunnable != null) handler.removeCallbacks(pollingRunnable);
     }
 
     @Override public boolean onSupportNavigateUp() { finish(); return true; }

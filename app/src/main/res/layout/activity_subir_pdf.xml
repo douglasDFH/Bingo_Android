@@ -65,8 +65,9 @@
                 android:gravity="center" android:layout_marginBottom="12dp">
                 <ProgressBar android:layout_width="wrap_content" android:layout_height="wrap_content"
                     android:indeterminateTint="@color/purple" />
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="Extrayendo cartones del PDF...\nEsto puede tardar según el tamaño."
+                <TextView android:id="@+id/tvProgreso"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Subiendo archivo..."
                     android:textColor="@color/purple" android:textSize="13sp"
                     android:gravity="center" android:layout_marginTop="8dp" />
             </LinearLayout>

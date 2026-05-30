@@ -149,43 +149,54 @@ def subir_pdf():
     db.session.add(pdf)
     db.session.commit()
 
-    try:
-        carpeta_imgs = os.path.join(current_app.config['IMAGENES_FOLDER'], f'pdf_{pdf.id}')
-        processor = PDFProcessor(
-            dpi=current_app.config['DPI_IMAGENES'],
-            formato=current_app.config['FORMATO_IMAGEN'],
-        )
-        resultado = processor.procesar(ruta_pdf, carpeta_imgs)
+    # Procesar en hilo de fondo para no bloquear el request
+    import threading
+    app = current_app._get_current_object()
+    threading.Thread(target=_procesar_pdf_async, args=(app, pdf.id), daemon=True).start()
 
-        pdf.carpeta_imagenes = carpeta_imgs
-        pdf.total_paginas = resultado['total']
-        pdf.paginas_ok = len(resultado['ok'])
-        pdf.paginas_error = len(resultado['error'])
-        pdf.estado = 'completado' if not resultado['error'] else 'completado_con_errores'
+    return jsonify({'ok': True, 'pdf_id': pdf.id, 'nombre': nombre_original, 'estado': 'procesando'})
 
-        for item in resultado['ok']:
-            if Carton.query.filter_by(numero=item['numero']).first():
-                continue
-            db.session.add(Carton(
-                numero=item['numero'],
-                pdf_id=pdf.id,
-                pagina_origen=item.get('pagina', item['indice'] + 1),
-                ruta_imagen=item['ruta'],
-                estado=Carton.ESTADO_DISPONIBLE,
-            ))
 
-        db.session.commit()
-        return jsonify({
-            'ok': True,
-            'pdf_id': pdf.id,
-            'nombre': nombre_original,
-            'total': pdf.total_paginas,
-            'cartones_creados': pdf.paginas_ok,
-            'errores': pdf.paginas_error,
-        })
+@api_bp.route('/pdfs/<int:pdf_id>/estado')
+def estado_pdf(pdf_id):
+    pdf = PDFProcesado.query.get_or_404(pdf_id)
+    data = pdf.to_dict()
+    data['cartones_creados'] = pdf.paginas_ok
+    data['errores'] = pdf.paginas_error
+    return jsonify(data)
 
-    except (PDFProcessorError, Exception) as e:
-        pdf.estado = 'error'
-        pdf.mensaje_error = str(e)[:1000]
-        db.session.commit()
-        return jsonify({'error': str(e)}), 500
+
+def _procesar_pdf_async(app, pdf_id):
+    with app.app_context():
+        pdf = PDFProcesado.query.get(pdf_id)
+        if not pdf:
+            return
+        try:
+            carpeta_imgs = os.path.join(app.config['IMAGENES_FOLDER'], f'pdf_{pdf.id}')
+            processor = PDFProcessor(
+                dpi=app.config['DPI_IMAGENES'],
+                formato=app.config['FORMATO_IMAGEN'],
+            )
+            resultado = processor.procesar(pdf.ruta_archivo, carpeta_imgs)
+
+            pdf.carpeta_imagenes = carpeta_imgs
+            pdf.total_paginas = resultado['total']
+            pdf.paginas_ok = len(resultado['ok'])
+            pdf.paginas_error = len(resultado['error'])
+            pdf.estado = 'completado' if not resultado['error'] else 'completado_con_errores'
+
+            for item in resultado['ok']:
+                if Carton.query.filter_by(numero=item['numero']).first():
+                    continue
+                db.session.add(Carton(
+                    numero=item['numero'],
+                    pdf_id=pdf.id,
+                    pagina_origen=item.get('pagina', item['indice'] + 1),
+                    ruta_imagen=item['ruta'],
+                    estado=Carton.ESTADO_DISPONIBLE,
+                ))
+            db.session.commit()
+        except Exception as e:
+            pdf.estado = 'error'
+            pdf.mensaje_error = str(e)[:1000]
+            db.session.commit()
