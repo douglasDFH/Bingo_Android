@@ -1,5 +1,6 @@
 """Factory de la aplicación Flask."""
 import os
+import traceback
 from flask import Flask, jsonify
 from flask_jwt_extended import JWTManager
 from .models import db
@@ -38,6 +39,20 @@ def create_app(config_class=Config):
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, DELETE'
         return response
+
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        tb = traceback.format_exc()
+        app.logger.error(f"Unhandled exception: {e}\n{tb}")
+        return jsonify({'error': str(e), 'trace': tb[-1000:]}), 500
+
+    @app.errorhandler(404)
+    def not_found(e):
+        return jsonify({'error': 'Ruta no encontrada', 'detail': str(e)}), 404
+
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        return jsonify({'error': 'Metodo no permitido', 'detail': str(e)}), 405
 
     with app.app_context():
         db.create_all()
