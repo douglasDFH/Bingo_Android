@@ -32,18 +32,20 @@ jobs:
       - name: Dar permisos a gradlew
         run: chmod +x gradlew
 
-      - name: Compilar APK Release
+      - name: Compilar APK Debug y Release
         run: |
-          ./gradlew assembleRelease \
+          ./gradlew assembleDebug assembleRelease \
             -PversionCode=${{ steps.version.outputs.VERSION_CODE }} \
             -PversionName=${{ steps.version.outputs.VERSION_NAME }}
 
-      - name: Renombrar APK
+      - name: Renombrar APKs
         run: |
           mv app/build/outputs/apk/release/app-release.apk \
              app/build/outputs/apk/release/BingoImperial-v${{ steps.version.outputs.VERSION_NAME }}.apk
+          mv app/build/outputs/apk/debug/app-debug.apk \
+             app/build/outputs/apk/debug/BingoImperial-v${{ steps.version.outputs.VERSION_NAME }}-debug.apk
 
-      - name: Publicar Release con APK
+      - name: Publicar Release con APKs
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.VERSION_NAME }}
@@ -53,11 +55,17 @@ jobs:
 
             Instalá esta APK en tu celular para tener la versión más reciente.
 
+            ### Archivos
+            - **BingoImperial-v${{ steps.version.outputs.VERSION_NAME }}.apk** → versión release (para distribuir)
+            - **BingoImperial-v${{ steps.version.outputs.VERSION_NAME }}-debug.apk** → versión debug (para pruebas)
+
             ### Cómo instalar
             1. Descargá el archivo `.apk`
             2. En el celular: Ajustes → Seguridad → activar "Fuentes desconocidas"
             3. Abrí el archivo y tocá Instalar
-          files: app/build/outputs/apk/release/BingoImperial-v${{ steps.version.outputs.VERSION_NAME }}.apk
+          files: |
+            app/build/outputs/apk/release/BingoImperial-v${{ steps.version.outputs.VERSION_NAME }}.apk
+            app/build/outputs/apk/debug/BingoImperial-v${{ steps.version.outputs.VERSION_NAME }}-debug.apk
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
