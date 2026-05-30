@@ -30,6 +30,10 @@ android {
         versionName buildVersionName
     }
 
+    buildFeatures {
+        buildConfig true
+    }
+
     buildTypes {
         release {
             minifyEnabled false
