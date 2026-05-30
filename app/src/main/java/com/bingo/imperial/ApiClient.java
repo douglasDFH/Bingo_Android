@@ -31,6 +31,7 @@ public class ApiClient {
     private static String token = null;
 
     public static void setToken(String t) { token = t; }
+    public static String getToken()       { return token; }
 
     public interface Callback {
         void onSuccess(String body);

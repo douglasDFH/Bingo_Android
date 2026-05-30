@@ -19,9 +19,29 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+import okhttp3.Call;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 
 public class SubirPDFActivity extends AppCompatActivity {
+
+    private static final int CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB por chunk
+    private static final int MAX_REINTENTOS = 3;
+
+    private final OkHttpClient chunkClient = new OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(2, TimeUnit.MINUTES)
+            .readTimeout(2, TimeUnit.MINUTES)
+            .build();
 
     private Uri pdfUri;
     private View cardArchivo, progressCard, resultCard, btnSubirWrap;
@@ -31,6 +51,7 @@ public class SubirPDFActivity extends AppCompatActivity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private int pdfId = -1;
     private Runnable pollingRunnable;
+    private boolean cancelado = false;
 
     private final ActivityResultLauncher<String[]> picker =
             registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
@@ -61,7 +82,7 @@ public class SubirPDFActivity extends AppCompatActivity {
         btnSubir         = findViewById(R.id.btnSubir);
 
         cardArchivo.setOnClickListener(v -> picker.launch(new String[]{"application/pdf"}));
-        btnSubir.setOnClickListener(v -> subirPDF());
+        btnSubir.setOnClickListener(v -> iniciarSubida());
         findViewById(R.id.btnVerCartones).setOnClickListener(v ->
                 startActivity(new Intent(this, CartonesActivity.class)));
     }
@@ -74,7 +95,7 @@ public class SubirPDFActivity extends AppCompatActivity {
                 int sizeIdx = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE);
                 tvNombreArchivo.setText(cursor.getString(nameIdx));
                 long size = cursor.getLong(sizeIdx);
-                tvTamano.setText(String.format("%.2f MB", size / 1024.0 / 1024.0));
+                tvTamano.setText(String.format("%.1f MB", size / 1024.0 / 1024.0));
                 cursor.close();
             }
             btnSubirWrap.setVisibility(View.VISIBLE);
@@ -84,47 +105,141 @@ public class SubirPDFActivity extends AppCompatActivity {
         }
     }
 
-    private void subirPDF() {
+    private void iniciarSubida() {
         if (pdfUri == null) return;
+        cancelado = false;
         btnSubir.setEnabled(false);
         progressCard.setVisibility(View.VISIBLE);
-        tvProgreso.setText("Subiendo archivo...");
         resultCard.setVisibility(View.GONE);
+        actualizarProgreso("Preparando archivo...", 0, 0);
 
-        new Thread(() -> {
-            try {
-                InputStream is = getContentResolver().openInputStream(pdfUri);
-                File temp = File.createTempFile("upload", ".pdf", getCacheDir());
-                FileOutputStream fos = new FileOutputStream(temp);
-                byte[] buf = new byte[8192];
-                int len;
-                while ((len = is.read(buf)) != -1) fos.write(buf, 0, len);
-                fos.close();
-                is.close();
+        new Thread(this::subirEnChunks).start();
+    }
 
-                ApiClient.uploadPdf(temp, new ApiClient.Callback() {
-                    @Override
-                    public void onSuccess(String body) {
-                        handler.post(() -> {
-                            try {
-                                JSONObject j = new JSONObject(body);
-                                pdfId = j.getInt("pdf_id");
-                                tvProgreso.setText("Procesando páginas... esto puede tardar unos minutos.");
-                                iniciarPolling();
-                            } catch (Exception e) {
-                                mostrarError("Error al iniciar procesamiento");
-                            }
-                        });
-                    }
-                    @Override
-                    public void onError(String error) {
-                        handler.post(() -> mostrarError("Error al subir: " + error));
-                    }
-                });
-            } catch (Exception e) {
-                handler.post(() -> mostrarError("Error: " + e.getMessage()));
+    private void subirEnChunks() {
+        File tempFile = null;
+        try {
+            // 1. Copiar a archivo temporal
+            actualizarProgreso("Preparando archivo...", 0, 0);
+            tempFile = copiarATemp();
+            if (tempFile == null || cancelado) return;
+
+            long totalBytes = tempFile.length();
+            int totalChunks = (int) Math.ceil((double) totalBytes / CHUNK_SIZE);
+            String uploadId = UUID.randomUUID().toString();
+            String nombre = tvNombreArchivo.getText().toString();
+
+            // 2. Subir cada chunk
+            byte[] buffer = new byte[CHUNK_SIZE];
+            java.io.FileInputStream fis = new java.io.FileInputStream(tempFile);
+
+            for (int i = 0; i < totalChunks; i++) {
+                if (cancelado) { fis.close(); return; }
+
+                int leidos = fis.read(buffer);
+                byte[] chunkData = new byte[leidos];
+                System.arraycopy(buffer, 0, chunkData, 0, leidos);
+
+                final int chunkActual = i + 1;
+                actualizarProgreso(
+                    String.format("Subiendo parte %d de %d...", chunkActual, totalChunks),
+                    chunkActual, totalChunks
+                );
+
+                boolean ok = subirChunkConReintento(uploadId, i, totalChunks, nombre, chunkData);
+                if (!ok) {
+                    fis.close();
+                    mostrarError("Error al subir parte " + chunkActual + ". Revisa tu conexión.");
+                    return;
+                }
             }
-        }).start();
+            fis.close();
+
+            // 3. Finalizar
+            actualizarProgreso("Ensamblando y procesando PDF...", totalChunks, totalChunks);
+            finalizarUpload(uploadId);
+
+        } catch (Exception e) {
+            mostrarError("Error: " + e.getMessage());
+        } finally {
+            if (tempFile != null) tempFile.delete();
+        }
+    }
+
+    private File copiarATemp() {
+        try {
+            InputStream is = getContentResolver().openInputStream(pdfUri);
+            File temp = File.createTempFile("upload", ".pdf", getCacheDir());
+            FileOutputStream fos = new FileOutputStream(temp);
+            byte[] buf = new byte[8192];
+            int len;
+            while ((len = is.read(buf)) != -1) fos.write(buf, 0, len);
+            fos.close();
+            is.close();
+            return temp;
+        } catch (IOException e) {
+            mostrarError("Error al leer el archivo");
+            return null;
+        }
+    }
+
+    private boolean subirChunkConReintento(String uploadId, int index, int total, String nombre, byte[] data) {
+        for (int intento = 1; intento <= MAX_REINTENTOS; intento++) {
+            try {
+                RequestBody chunkBody = RequestBody.create(data, MediaType.get("application/octet-stream"));
+                MultipartBody body = new MultipartBody.Builder()
+                        .setType(MultipartBody.FORM)
+                        .addFormDataPart("chunk", "chunk", chunkBody)
+                        .addFormDataPart("upload_id", uploadId)
+                        .addFormDataPart("chunk_index", String.valueOf(index))
+                        .addFormDataPart("total_chunks", String.valueOf(total))
+                        .addFormDataPart("nombre", nombre)
+                        .build();
+
+                Request request = new Request.Builder()
+                        .url(Config.BASE_URL + "/upload-chunk")
+                        .header("Authorization", "Bearer " + ApiClient.getToken())
+                        .post(body)
+                        .build();
+
+                try (Response response = chunkClient.newCall(request).execute()) {
+                    if (response.isSuccessful()) return true;
+                }
+            } catch (IOException e) {
+                if (intento == MAX_REINTENTOS) return false;
+                try { Thread.sleep(2000L * intento); } catch (InterruptedException ignored) {}
+            }
+        }
+        return false;
+    }
+
+    private void finalizarUpload(String uploadId) {
+        try {
+            JSONObject body = new JSONObject();
+            body.put("upload_id", uploadId);
+
+            ApiClient.post("/upload-finalize", body.toString(), new ApiClient.Callback() {
+                @Override
+                public void onSuccess(String response) {
+                    handler.post(() -> {
+                        try {
+                            JSONObject j = new JSONObject(response);
+                            pdfId = j.getInt("pdf_id");
+                            actualizarProgreso("Procesando páginas... puede tardar unos minutos.", pdfId, pdfId);
+                            iniciarPolling();
+                        } catch (Exception e) {
+                            mostrarError("Error al iniciar procesamiento");
+                        }
+                    });
+                }
+                @Override
+                public void onError(String error) {
+                    mostrarError("Error al finalizar: " + error);
+                }
+            });
+        } catch (Exception e) {
+            mostrarError("Error al finalizar");
+        }
     }
 
     private void iniciarPolling() {
@@ -141,7 +256,7 @@ public class SubirPDFActivity extends AppCompatActivity {
                                 String estado = j.optString("estado", "");
                                 switch (estado) {
                                     case "procesando":
-                                        tvProgreso.setText("Procesando páginas... esto puede tardar unos minutos.");
+                                        actualizarProgreso("Procesando páginas... puede tardar unos minutos.", 0, 0);
                                         handler.postDelayed(pollingRunnable, 3000);
                                         break;
                                     case "completado":
@@ -149,7 +264,7 @@ public class SubirPDFActivity extends AppCompatActivity {
                                         mostrarResultado(j);
                                         break;
                                     case "error":
-                                        mostrarError("Error al procesar: " + j.optString("mensaje_error", ""));
+                                        mostrarError("Error al procesar el PDF");
                                         break;
                                     default:
                                         handler.postDelayed(pollingRunnable, 3000);
@@ -169,6 +284,16 @@ public class SubirPDFActivity extends AppCompatActivity {
         handler.postDelayed(pollingRunnable, 3000);
     }
 
+    private void actualizarProgreso(String mensaje, int actual, int total) {
+        handler.post(() -> {
+            progressCard.setVisibility(View.VISIBLE);
+            if (total > 0 && actual > 0)
+                tvProgreso.setText(String.format("%s\n%d / %d partes", mensaje, actual, total));
+            else
+                tvProgreso.setText(mensaje);
+        });
+    }
+
     private void mostrarResultado(JSONObject j) {
         try {
             progressCard.setVisibility(View.GONE);
@@ -183,16 +308,20 @@ public class SubirPDFActivity extends AppCompatActivity {
     }
 
     private void mostrarError(String msg) {
-        progressCard.setVisibility(View.GONE);
-        btnSubir.setEnabled(true);
-        Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+        handler.post(() -> {
+            progressCard.setVisibility(View.GONE);
+            btnSubir.setEnabled(true);
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+        });
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        cancelado = true;
         if (pollingRunnable != null) handler.removeCallbacks(pollingRunnable);
     }
 
-    @Override public boolean onSupportNavigateUp() { finish(); return true; }
+    @Override
+    public boolean onSupportNavigateUp() { finish(); return true; }
 }

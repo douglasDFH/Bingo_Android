@@ -1,6 +1,8 @@
 """API JSON para la app móvil."""
 import os
 import uuid
+import shutil
+import threading
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from flask import Blueprint, jsonify, request, current_app
@@ -200,3 +202,80 @@ def _procesar_pdf_async(app, pdf_id):
             pdf.estado = 'error'
             pdf.mensaje_error = str(e)[:1000]
             db.session.commit()
+
+
+# ── Chunked upload ────────────────────────────────────────────────────────────
+
+@api_bp.route('/upload-chunk', methods=['POST'])
+def upload_chunk():
+    upload_id    = request.form.get('upload_id')
+    chunk_index  = request.form.get('chunk_index', type=int)
+    total_chunks = request.form.get('total_chunks', type=int)
+    nombre       = request.form.get('nombre', 'archivo.pdf')
+
+    if upload_id is None or chunk_index is None or total_chunks is None:
+        return jsonify({'error': 'Parametros incompletos'}), 400
+    if 'chunk' not in request.files:
+        return jsonify({'error': 'Sin datos'}), 400
+
+    chunks_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'chunks', upload_id)
+    os.makedirs(chunks_dir, exist_ok=True)
+
+    request.files['chunk'].save(os.path.join(chunks_dir, f'chunk_{chunk_index:05d}'))
+
+    meta_path = os.path.join(chunks_dir, 'meta.txt')
+    if not os.path.exists(meta_path):
+        with open(meta_path, 'w') as f:
+            f.write(f"{nombre}\n{total_chunks}")
+
+    return jsonify({'ok': True, 'chunk': chunk_index})
+
+
+@api_bp.route('/upload-finalize', methods=['POST'])
+def upload_finalize():
+    data      = request.get_json() or {}
+    upload_id = data.get('upload_id')
+
+    if not upload_id:
+        return jsonify({'error': 'upload_id requerido'}), 400
+
+    chunks_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'chunks', upload_id)
+    if not os.path.isdir(chunks_dir):
+        return jsonify({'error': 'Upload no encontrado'}), 404
+
+    nombre_original = 'archivo.pdf'
+    meta_path = os.path.join(chunks_dir, 'meta.txt')
+    if os.path.exists(meta_path):
+        with open(meta_path) as f:
+            nombre_original = f.readline().strip()
+
+    chunks = sorted(
+        [f for f in os.listdir(chunks_dir) if f.startswith('chunk_')],
+        key=lambda x: int(x.split('_')[1])
+    )
+    if not chunks:
+        return jsonify({'error': 'Sin chunks'}), 400
+
+    nombre_unico = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{secure_filename(nombre_original)}"
+    ruta_pdf = os.path.join(current_app.config['UPLOAD_FOLDER'], nombre_unico)
+
+    with open(ruta_pdf, 'wb') as out:
+        for chunk_name in chunks:
+            with open(os.path.join(chunks_dir, chunk_name), 'rb') as f:
+                out.write(f.read())
+
+    shutil.rmtree(chunks_dir, ignore_errors=True)
+
+    pdf = PDFProcesado(
+        nombre_archivo=nombre_original,
+        ruta_archivo=ruta_pdf,
+        estado='procesando',
+        dpi=current_app.config['DPI_IMAGENES'],
+    )
+    db.session.add(pdf)
+    db.session.commit()
+
+    app = current_app._get_current_object()
+    threading.Thread(target=_procesar_pdf_async, args=(app, pdf.id), daemon=True).start()
+
+    return jsonify({'ok': True, 'pdf_id': pdf.id, 'nombre': nombre_original, 'estado': 'procesando'})
