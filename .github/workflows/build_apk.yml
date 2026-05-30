@@ -37,9 +37,13 @@ jobs:
         with:
           gradle-version: '8.4'
 
+      - name: Generar Gradle Wrapper
+        run: gradle wrapper --gradle-version 8.4
+
       - name: Compilar APK Debug y Release
         run: |
-          gradle assembleDebug assembleRelease \
+          chmod +x gradlew
+          ./gradlew assembleDebug assembleRelease \
             -PversionCode=${{ steps.version.outputs.VERSION_CODE }} \
             -PversionName=${{ steps.version.outputs.VERSION_NAME }}
 
