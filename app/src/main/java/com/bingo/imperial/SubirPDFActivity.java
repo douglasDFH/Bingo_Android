@@ -228,7 +228,7 @@ public class SubirPDFActivity extends AppCompatActivity {
                             actualizarProgreso("Procesando páginas... puede tardar unos minutos.", pdfId, pdfId);
                             iniciarPolling();
                         } catch (Exception e) {
-                            mostrarError("Error al iniciar procesamiento");
+                            mostrarError("Parse error: " + e.getMessage() + "\nRespuesta: " + response.substring(0, Math.min(300, response.length())));
                         }
                     });
                 }
