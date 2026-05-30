@@ -6,7 +6,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -15,9 +17,11 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,14 +48,19 @@ public class SubirPDFActivity extends AppCompatActivity {
             .build();
 
     private Uri pdfUri;
-    private View cardArchivo, progressCard, resultCard, btnSubirWrap;
+    private View cardArchivo, progressCard, resultCard, btnSubirWrap, cardAsignar;
     private TextView tvNombreArchivo, tvTamano, tvProgreso;
     private TextView tvResultNombre, tvResultTotal, tvResultNuevos, tvResultErrores;
     private Button btnSubir;
+    private Spinner spUsuario;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private int pdfId = -1;
+    private int targetUserId = 0; // Capturado desde el spinner antes del upload
     private Runnable pollingRunnable;
     private boolean cancelado = false;
+
+    private final ArrayList<String> usuarioNombres = new ArrayList<>();
+    private final ArrayList<Integer> usuarioIds = new ArrayList<>();
 
     private final ActivityResultLauncher<String[]> picker =
             registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
@@ -72,6 +81,7 @@ public class SubirPDFActivity extends AppCompatActivity {
         progressCard     = findViewById(R.id.progressCard);
         resultCard       = findViewById(R.id.resultCard);
         btnSubirWrap     = findViewById(R.id.btnSubirWrap);
+        cardAsignar      = findViewById(R.id.cardAsignar);
         tvNombreArchivo  = findViewById(R.id.tvNombreArchivo);
         tvTamano         = findViewById(R.id.tvTamano);
         tvProgreso       = findViewById(R.id.tvProgreso);
@@ -80,11 +90,47 @@ public class SubirPDFActivity extends AppCompatActivity {
         tvResultNuevos   = findViewById(R.id.tvResultNuevos);
         tvResultErrores  = findViewById(R.id.tvResultErrores);
         btnSubir         = findViewById(R.id.btnSubir);
+        spUsuario        = findViewById(R.id.spUsuario);
 
         cardArchivo.setOnClickListener(v -> picker.launch(new String[]{"application/pdf"}));
         btnSubir.setOnClickListener(v -> iniciarSubida());
         findViewById(R.id.btnVerCartones).setOnClickListener(v ->
                 startActivity(new Intent(this, CartonesActivity.class)));
+
+        SessionManager session = new SessionManager(this);
+        if (session.isAdmin()) {
+            cardAsignar.setVisibility(View.VISIBLE);
+            cargarUsuariosParaAsignar();
+        }
+    }
+
+    private void cargarUsuariosParaAsignar() {
+        ApiClient.get("/usuarios", new ApiClient.Callback() {
+            @Override
+            public void onSuccess(String body) {
+                handler.post(() -> {
+                    try {
+                        JSONArray arr = new JSONArray(body);
+                        usuarioNombres.clear();
+                        usuarioIds.clear();
+                        usuarioNombres.add("Sin asignar (Admin)");
+                        usuarioIds.add(0);
+                        for (int i = 0; i < arr.length(); i++) {
+                            JSONObject u = arr.getJSONObject(i);
+                            usuarioNombres.add(u.getString("username") + " (" + u.getString("rol") + ")");
+                            usuarioIds.add(u.getInt("id"));
+                        }
+                        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                                SubirPDFActivity.this,
+                                android.R.layout.simple_spinner_item,
+                                usuarioNombres);
+                        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                        spUsuario.setAdapter(adapter);
+                    } catch (Exception ignored) {}
+                });
+            }
+            @Override public void onError(String error) {}
+        });
     }
 
     private void mostrarArchivo(Uri uri) {
@@ -112,6 +158,10 @@ public class SubirPDFActivity extends AppCompatActivity {
         progressCard.setVisibility(View.VISIBLE);
         resultCard.setVisibility(View.GONE);
         actualizarProgreso("Preparando archivo...", 0, 0);
+
+        // Capturar usuario seleccionado antes de entrar al hilo de fondo
+        int pos = spUsuario.getSelectedItemPosition();
+        targetUserId = (pos > 0 && pos < usuarioIds.size()) ? usuarioIds.get(pos) : 0;
 
         new Thread(this::subirEnChunks).start();
     }
@@ -217,6 +267,8 @@ public class SubirPDFActivity extends AppCompatActivity {
         try {
             JSONObject body = new JSONObject();
             body.put("upload_id", uploadId);
+
+            if (targetUserId > 0) body.put("usuario_id", targetUserId);
 
             ApiClient.post("/upload-finalize", body.toString(), new ApiClient.Callback() {
                 @Override

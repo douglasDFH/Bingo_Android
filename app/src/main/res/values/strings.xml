@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Bingo Imperial</string>
+    <string-array name="roles_array">
+        <item>Admin</item>
+        <item>Vendedor</item>
+    </string-array>
 </resources>

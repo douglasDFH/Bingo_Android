@@ -179,6 +179,15 @@
                     <Button android:id="@+id/btnVendidos" android:layout_width="match_parent"
                         android:layout_height="72dp" android:text="🛒 Vendidos"
                         android:backgroundTint="@color/red" android:textColor="#fff"
+                        android:layout_marginBottom="10dp" />
+
+                    <Button android:id="@+id/btnUsuarios"
+                        android:layout_width="match_parent"
+                        android:layout_height="72dp"
+                        android:text="👥 Gestionar Usuarios"
+                        android:backgroundTint="@color/dark"
+                        android:textColor="#fff"
+                        android:visibility="gone"
                         android:layout_marginBottom="32dp" />
 
                 </LinearLayout>

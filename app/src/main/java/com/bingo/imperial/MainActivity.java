@@ -36,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         ApiClient.setToken(session.getToken());
+        boolean esAdmin = session.isAdmin();
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -70,6 +71,13 @@ public class MainActivity extends AppCompatActivity {
             i.putExtra("estado", "vendido");
             startActivity(i);
         });
+
+        android.widget.Button btnUsuarios = findViewById(R.id.btnUsuarios);
+        if (esAdmin) {
+            btnUsuarios.setVisibility(android.view.View.VISIBLE);
+            btnUsuarios.setOnClickListener(v ->
+                    startActivity(new Intent(this, UsuariosActivity.class)));
+        }
 
         cargarDatos();
     }

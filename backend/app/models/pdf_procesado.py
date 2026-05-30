@@ -17,6 +17,7 @@ class PDFProcesado(db.Model):
     dpi = db.Column(db.Integer, default=100)
     estado = db.Column(db.String(20), default='pendiente')  # pendiente, procesando, completado, error
     mensaje_error = db.Column(db.Text)
+    subido_por = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
 
     cartones = db.relationship(
         'Carton',

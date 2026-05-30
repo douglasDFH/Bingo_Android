@@ -37,7 +37,7 @@ def create_app(config_class=Config):
     def add_cors(response):
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, DELETE'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS, DELETE, PUT'
         return response
 
     @app.errorhandler(Exception)
@@ -56,9 +56,26 @@ def create_app(config_class=Config):
 
     with app.app_context():
         db.create_all()
+        _migrar_columnas()
         _crear_admin_inicial()
 
     return app
+
+
+def _migrar_columnas():
+    """Agrega columnas nuevas a tablas SQLite existentes sin romper datos."""
+    from sqlalchemy import text
+    migraciones = [
+        "ALTER TABLE cartones ADD COLUMN vendedor_id INTEGER REFERENCES users(id)",
+        "ALTER TABLE pdfs_procesados ADD COLUMN subido_por INTEGER REFERENCES users(id)",
+    ]
+    with db.engine.connect() as conn:
+        for sql in migraciones:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+            except Exception:
+                pass  # Columna ya existe
 
 
 def _crear_admin_inicial():

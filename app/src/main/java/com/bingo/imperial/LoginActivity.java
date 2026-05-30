@@ -71,7 +71,7 @@ public class LoginActivity extends AppCompatActivity {
                             String token = json.getString("token");
                             JSONObject user = json.getJSONObject("user");
                             new SessionManager(LoginActivity.this)
-                                    .guardarSesion(token, user.getString("username"), user.getString("rol"));
+                                    .guardarSesion(token, user.getString("username"), user.getString("rol"), user.getInt("id"));
                             irAMain();
                         } catch (Exception e) {
                             mostrarError("Error al procesar respuesta");

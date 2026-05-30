@@ -71,6 +71,33 @@ public class ApiClient {
         });
     }
 
+    public static void put(String path, String jsonBody, Callback callback) {
+        RequestBody body = RequestBody.create(jsonBody, JSON);
+        Request request = baseRequest(Config.BASE_URL + path).put(body).build();
+        client.newCall(request).enqueue(new okhttp3.Callback() {
+            @Override public void onFailure(Call call, IOException e) {
+                callback.onError(e.getMessage());
+            }
+            @Override public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) { callback.onError("Error " + response.code()); return; }
+                callback.onSuccess(response.body().string());
+            }
+        });
+    }
+
+    public static void delete(String path, Callback callback) {
+        Request request = baseRequest(Config.BASE_URL + path).delete().build();
+        client.newCall(request).enqueue(new okhttp3.Callback() {
+            @Override public void onFailure(Call call, IOException e) {
+                callback.onError(e.getMessage());
+            }
+            @Override public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) { callback.onError("Error " + response.code()); return; }
+                callback.onSuccess(response.body().string());
+            }
+        });
+    }
+
     public static void uploadPdf(File file, Callback callback) {
         RequestBody fileBody = RequestBody.create(file, MediaType.get("application/pdf"));
         MultipartBody body = new MultipartBody.Builder()

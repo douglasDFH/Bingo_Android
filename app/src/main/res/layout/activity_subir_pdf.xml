@@ -46,6 +46,33 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Asignar a usuario (solo admin) -->
+            <LinearLayout
+                android:id="@+id/cardAsignar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:layout_marginBottom="12dp"
+                android:background="#fff"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Asignar cartones a:"
+                    android:textSize="13sp"
+                    android:textColor="@color/gray"
+                    android:layout_marginBottom="6dp" />
+
+                <Spinner
+                    android:id="@+id/spUsuario"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@android:drawable/btn_dropdown" />
+
+            </LinearLayout>
+
             <!-- Botón subir -->
             <LinearLayout android:id="@+id/btnSubirWrap"
                 android:layout_width="match_parent" android:layout_height="wrap_content"

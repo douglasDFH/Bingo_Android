@@ -29,6 +29,7 @@ class User(db.Model):
             'username': self.username,
             'rol': self.rol,
             'activo': self.activo,
+            'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
         }
 
     def __repr__(self):

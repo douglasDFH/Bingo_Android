@@ -77,11 +77,29 @@ def crear_usuario():
     return jsonify(user.to_dict()), 201
 
 
+@auth_bp.route('/usuarios/<int:user_id>', methods=['PUT'])
+@admin_required
+def actualizar_usuario(user_id):
+    user = User.query.get_or_404(user_id)
+    data = request.get_json() or {}
+
+    if 'password' in data and data['password']:
+        user.set_password(data['password'])
+    if 'rol' in data and data['rol'] in (User.ROL_ADMIN, User.ROL_VENDEDOR):
+        user.rol = data['rol']
+    if 'activo' in data:
+        if str(user_id) == get_jwt_identity() and not data['activo']:
+            return jsonify({'error': 'No puedes desactivar tu propia cuenta'}), 400
+        user.activo = bool(data['activo'])
+
+    db.session.commit()
+    return jsonify(user.to_dict())
+
+
 @auth_bp.route('/usuarios/<int:user_id>', methods=['DELETE'])
 @admin_required
 def eliminar_usuario(user_id):
     user = User.query.get_or_404(user_id)
-    claims = get_jwt()
     if str(user_id) == get_jwt_identity():
         return jsonify({'error': 'No puedes eliminar tu propia cuenta'}), 400
     db.session.delete(user)

@@ -26,6 +26,7 @@
         <activity android:name=".CartonesActivity" />
         <activity android:name=".CartonDetalleActivity" />
         <activity android:name=".SubirPDFActivity" />
+        <activity android:name=".UsuariosActivity" />
     </application>
 
 </manifest>

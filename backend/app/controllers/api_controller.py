@@ -6,15 +6,21 @@ import threading
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from flask import Blueprint, jsonify, request, current_app
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from sqlalchemy import func, or_
 from werkzeug.utils import secure_filename
 from ..models import db
 from ..models.pdf_procesado import PDFProcesado
 from ..models.carton import Carton
+from ..models.user import User
 from ..services.pdf_processor import PDFProcessor, PDFProcessorError
 
 api_bp = Blueprint('api', __name__)
+
+
+def _usuario_actual():
+    """Retorna (user_id: int, rol: str) del JWT actual."""
+    return int(get_jwt_identity()), get_jwt().get('rol', '')
 
 
 @api_bp.before_request
@@ -23,20 +29,34 @@ def require_auth():
     pass
 
 
+@api_bp.route('/usuarios')
+def listar_usuarios():
+    """Lista de usuarios para admin (para filtros y asignación)."""
+    _, rol = _usuario_actual()
+    if rol != User.ROL_ADMIN:
+        return jsonify({'error': 'Se requiere rol admin'}), 403
+    usuarios = User.query.filter_by(activo=True).order_by(User.username).all()
+    return jsonify([u.to_dict() for u in usuarios])
+
+
 @api_bp.route('/dashboard')
 def dashboard():
-    total_pdfs = PDFProcesado.query.count()
-    total_cartones = Carton.query.count()
-    disponibles = Carton.query.filter_by(estado=Carton.ESTADO_DISPONIBLE).count()
-    vendidos = Carton.query.filter_by(estado=Carton.ESTADO_VENDIDO).count()
-    reservados = Carton.query.filter_by(estado=Carton.ESTADO_RESERVADO).count()
+    user_id, rol = _usuario_actual()
+
+    base = Carton.query if rol == User.ROL_ADMIN else Carton.query.filter_by(vendedor_id=user_id)
+    pdfs_base = PDFProcesado.query if rol == User.ROL_ADMIN else PDFProcesado.query.filter_by(subido_por=user_id)
+
+    total_cartones = base.count()
+    disponibles = base.filter_by(estado=Carton.ESTADO_DISPONIBLE).count()
+    vendidos = base.filter_by(estado=Carton.ESTADO_VENDIDO).count()
+    reservados = base.filter_by(estado=Carton.ESTADO_RESERVADO).count()
     ingresos = db.session.query(func.sum(Carton.precio)).filter(
-        Carton.estado == Carton.ESTADO_VENDIDO
+        Carton.estado == Carton.ESTADO_VENDIDO,
+        *([Carton.vendedor_id == user_id] if rol != User.ROL_ADMIN else [])
     ).scalar() or 0
 
-    ultimos_pdfs = PDFProcesado.query.order_by(
-        PDFProcesado.fecha_procesado.desc()
-    ).limit(5).all()
+    total_pdfs = pdfs_base.count()
+    ultimos_pdfs = pdfs_base.order_by(PDFProcesado.fecha_procesado.desc()).limit(5).all()
 
     return jsonify({
         'total_pdfs': total_pdfs,
@@ -46,17 +66,25 @@ def dashboard():
         'reservados': reservados,
         'ingresos': float(ingresos),
         'ultimos_pdfs': [p.to_dict() for p in ultimos_pdfs],
+        'es_admin': rol == User.ROL_ADMIN,
     })
 
 
 @api_bp.route('/cartones')
 def cartones():
+    user_id, rol = _usuario_actual()
     estado = request.args.get('estado', '').strip()
     q = request.args.get('q', '').strip()
+    usuario_id = request.args.get('usuario_id', type=int)
     page = max(int(request.args.get('page', 1)), 1)
     per_page = 30
 
     query = Carton.query
+    if rol != User.ROL_ADMIN:
+        query = query.filter(Carton.vendedor_id == user_id)
+    elif usuario_id:
+        query = query.filter(Carton.vendedor_id == usuario_id)
+
     if estado:
         query = query.filter(Carton.estado == estado)
     if q:
@@ -69,11 +97,11 @@ def cartones():
     query = query.order_by(Carton.numero.asc())
 
     total = query.count()
-    cartones = query.offset((page - 1) * per_page).limit(per_page).all()
+    items = query.offset((page - 1) * per_page).limit(per_page).all()
     total_paginas = (total + per_page - 1) // per_page
 
     return jsonify({
-        'cartones': [c.to_dict() for c in cartones],
+        'cartones': [c.to_dict() for c in items],
         'total': total,
         'page': page,
         'total_paginas': total_paginas,
@@ -137,6 +165,9 @@ def subir_pdf():
     if archivo.filename == '' or not archivo.filename.lower().endswith('.pdf'):
         return jsonify({'error': 'Solo se permiten archivos PDF'}), 400
 
+    user_id, rol = _usuario_actual()
+    target_user_id = request.form.get('usuario_id', type=int) or user_id
+
     nombre_original = secure_filename(archivo.filename)
     nombre_unico = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{nombre_original}"
     ruta_pdf = os.path.join(current_app.config['UPLOAD_FOLDER'], nombre_unico)
@@ -147,14 +178,14 @@ def subir_pdf():
         ruta_archivo=ruta_pdf,
         estado='procesando',
         dpi=current_app.config['DPI_IMAGENES'],
+        subido_por=user_id,
     )
     db.session.add(pdf)
     db.session.commit()
 
-    # Procesar en hilo de fondo para no bloquear el request
     import threading
     app = current_app._get_current_object()
-    threading.Thread(target=_procesar_pdf_async, args=(app, pdf.id), daemon=True).start()
+    threading.Thread(target=_procesar_pdf_async, args=(app, pdf.id, target_user_id), daemon=True).start()
 
     return jsonify({'ok': True, 'pdf_id': pdf.id, 'nombre': nombre_original, 'estado': 'procesando'})
 
@@ -168,7 +199,7 @@ def estado_pdf(pdf_id):
     return jsonify(data)
 
 
-def _procesar_pdf_async(app, pdf_id):
+def _procesar_pdf_async(app, pdf_id, vendedor_id=None):
     with app.app_context():
         pdf = PDFProcesado.query.get(pdf_id)
         if not pdf:
@@ -196,6 +227,7 @@ def _procesar_pdf_async(app, pdf_id):
                     pagina_origen=item.get('pagina', item['indice'] + 1),
                     ruta_imagen=item['ruta'],
                     estado=Carton.ESTADO_DISPONIBLE,
+                    vendedor_id=vendedor_id,
                 ))
             db.session.commit()
         except Exception as e:
@@ -243,6 +275,9 @@ def upload_finalize():
     if not os.path.isdir(chunks_dir):
         return jsonify({'error': 'Upload no encontrado'}), 404
 
+    user_id, _ = _usuario_actual()
+    target_user_id = data.get('usuario_id') or user_id
+
     nombre_original = 'archivo.pdf'
     meta_path = os.path.join(chunks_dir, 'meta.txt')
     if os.path.exists(meta_path):
@@ -271,11 +306,12 @@ def upload_finalize():
         ruta_archivo=ruta_pdf,
         estado='procesando',
         dpi=current_app.config['DPI_IMAGENES'],
+        subido_por=user_id,
     )
     db.session.add(pdf)
     db.session.commit()
 
     app = current_app._get_current_object()
-    threading.Thread(target=_procesar_pdf_async, args=(app, pdf.id), daemon=True).start()
+    threading.Thread(target=_procesar_pdf_async, args=(app, pdf.id, target_user_id), daemon=True).start()
 
     return jsonify({'ok': True, 'pdf_id': pdf.id, 'nombre': nombre_original, 'estado': 'procesando'})
