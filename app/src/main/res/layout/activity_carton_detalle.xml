@@ -132,6 +132,12 @@
             <Button android:id="@+id/btnLiberar"
                 android:layout_width="match_parent" android:layout_height="52dp"
                 android:text="Liberar" android:backgroundTint="@color/gray" android:textColor="#fff"
+                android:visibility="gone" android:layout_marginBottom="10dp" />
+
+            <Button android:id="@+id/btnEliminarCarton"
+                android:layout_width="match_parent" android:layout_height="52dp"
+                android:text="🗑 Eliminar cartón"
+                android:backgroundTint="@color/red" android:textColor="#fff"
                 android:visibility="gone" android:layout_marginBottom="32dp" />
 
         </LinearLayout>

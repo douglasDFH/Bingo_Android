@@ -34,7 +34,7 @@ public class CartonDetalleActivity extends AppCompatActivity {
     private ImageView imageView;
     private TextView tvNumero, tvEstado, tvComprador, tvTelefono, tvPrecio, tvNotas, tvFecha;
     private View infoComprador;
-    private Button btnVender, btnReservar, btnLiberar;
+    private Button btnVender, btnReservar, btnLiberar, btnEliminarCarton;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -60,9 +60,14 @@ public class CartonDetalleActivity extends AppCompatActivity {
         tvNotas       = findViewById(R.id.tvNotas);
         tvFecha       = findViewById(R.id.tvFecha);
         infoComprador = findViewById(R.id.infoComprador);
-        btnVender     = findViewById(R.id.btnVender);
-        btnReservar   = findViewById(R.id.btnReservar);
-        btnLiberar    = findViewById(R.id.btnLiberar);
+        btnVender          = findViewById(R.id.btnVender);
+        btnReservar        = findViewById(R.id.btnReservar);
+        btnLiberar         = findViewById(R.id.btnLiberar);
+        btnEliminarCarton  = findViewById(R.id.btnEliminarCarton);
+
+        SessionManager session = new SessionManager(this);
+        if (session.isAdmin()) btnEliminarCarton.setVisibility(android.view.View.VISIBLE);
+        btnEliminarCarton.setOnClickListener(v -> confirmarEliminarCarton());
 
         findViewById(R.id.btnDescargar).setOnClickListener(v -> descargarImagen());
 
@@ -219,6 +224,30 @@ public class CartonDetalleActivity extends AppCompatActivity {
                     ApiClient.post("/cartones/" + cartonId + "/liberar", "{}", new ApiClient.Callback() {
                         @Override public void onSuccess(String b) { handler.post(() -> cargarDetalle()); }
                         @Override public void onError(String e) { handler.post(() -> Toast.makeText(CartonDetalleActivity.this, "Error", Toast.LENGTH_SHORT).show()); }
+                    });
+                })
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private void confirmarEliminarCarton() {
+        String numero = carton != null ? carton.optString("numero", "") : "";
+        new AlertDialog.Builder(this)
+                .setTitle("Eliminar cartón")
+                .setMessage("¿Eliminar el cartón #" + numero + "? Esta acción no se puede deshacer.")
+                .setPositiveButton("Eliminar", (d, w) -> {
+                    ApiClient.delete("/cartones/" + cartonId, new ApiClient.Callback() {
+                        @Override
+                        public void onSuccess(String body) {
+                            handler.post(() -> {
+                                Toast.makeText(CartonDetalleActivity.this, "Cartón eliminado", Toast.LENGTH_SHORT).show();
+                                finish();
+                            });
+                        }
+                        @Override
+                        public void onError(String error) {
+                            handler.post(() -> Toast.makeText(CartonDetalleActivity.this, "Error al eliminar", Toast.LENGTH_SHORT).show());
+                        }
                     });
                 })
                 .setNegativeButton("Cancelar", null)

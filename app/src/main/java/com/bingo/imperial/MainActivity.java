@@ -59,6 +59,8 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(new Intent(this, SubirPDFActivity.class)));
         findViewById(R.id.btnVerCartones).setOnClickListener(v ->
                 startActivity(new Intent(this, CartonesActivity.class)));
+        findViewById(R.id.btnVerPDFs).setOnClickListener(v ->
+                startActivity(new Intent(this, PDFsActivity.class)));
         findViewById(R.id.btnBuscar).setOnClickListener(v ->
                 startActivity(new Intent(this, CartonesActivity.class)));
         findViewById(R.id.btnDisponibles).setOnClickListener(v -> {

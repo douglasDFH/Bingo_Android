@@ -190,6 +190,19 @@ def subir_pdf():
     return jsonify({'ok': True, 'pdf_id': pdf.id, 'nombre': nombre_original, 'estado': 'procesando'})
 
 
+@api_bp.route('/pdfs')
+def listar_pdfs():
+    user_id, rol = _usuario_actual()
+    base = PDFProcesado.query if rol == User.ROL_ADMIN else PDFProcesado.query.filter_by(subido_por=user_id)
+    pdfs = base.order_by(PDFProcesado.fecha_procesado.desc()).all()
+    resultado = []
+    for p in pdfs:
+        d = p.to_dict()
+        d['total_cartones'] = p.cartones.count()
+        resultado.append(d)
+    return jsonify(resultado)
+
+
 @api_bp.route('/pdfs/<int:pdf_id>/estado')
 def estado_pdf(pdf_id):
     pdf = PDFProcesado.query.get_or_404(pdf_id)
@@ -197,6 +210,37 @@ def estado_pdf(pdf_id):
     data['cartones_creados'] = pdf.paginas_ok
     data['errores'] = pdf.paginas_error
     return jsonify(data)
+
+
+@api_bp.route('/pdfs/<int:pdf_id>', methods=['DELETE'])
+def eliminar_pdf(pdf_id):
+    user_id, rol = _usuario_actual()
+    pdf = PDFProcesado.query.get_or_404(pdf_id)
+    if rol != User.ROL_ADMIN and pdf.subido_por != user_id:
+        return jsonify({'error': 'Sin permiso'}), 403
+    carpeta = pdf.carpeta_imagenes
+    db.session.delete(pdf)
+    db.session.commit()
+    if carpeta and os.path.isdir(carpeta):
+        import shutil as _shutil
+        _shutil.rmtree(carpeta, ignore_errors=True)
+    if pdf.ruta_archivo and os.path.isfile(pdf.ruta_archivo):
+        os.remove(pdf.ruta_archivo)
+    return jsonify({'ok': True})
+
+
+@api_bp.route('/cartones/<int:carton_id>', methods=['DELETE'])
+def eliminar_carton(carton_id):
+    user_id, rol = _usuario_actual()
+    carton = Carton.query.get_or_404(carton_id)
+    if rol != User.ROL_ADMIN and carton.vendedor_id != user_id:
+        return jsonify({'error': 'Sin permiso'}), 403
+    ruta_img = carton.ruta_imagen
+    db.session.delete(carton)
+    db.session.commit()
+    if ruta_img and os.path.isfile(ruta_img):
+        os.remove(ruta_img)
+    return jsonify({'ok': True})
 
 
 def _procesar_pdf_async(app, pdf_id, vendedor_id=None):
