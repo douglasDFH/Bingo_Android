@@ -40,7 +40,7 @@ public class MainActivity extends AppCompatActivity {
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setTitle("Bingo Imperial");
+        getSupportActionBar().setTitle("Bingo Supremo");
 
         swipeRefresh    = findViewById(R.id.swipeRefresh);
         errorCard       = findViewById(R.id.errorCard);
