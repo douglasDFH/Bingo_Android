@@ -83,10 +83,15 @@ def _migrar_columnas():
 
 
 def _crear_admin_inicial():
-    """Crea el usuario admin por defecto si no existe ninguno."""
+    """Garantiza que el usuario admin existe y tiene la contraseña correcta."""
+    import os
     from .models.user import User
-    if User.query.count() == 0:
+    password = os.environ.get('ADMIN_PASSWORD', 'admin1234')
+    admin = User.query.filter_by(username='admin').first()
+    if admin is None:
         admin = User(username='admin', rol=User.ROL_ADMIN)
-        admin.set_password('admin1234')
         db.session.add(admin)
-        db.session.commit()
+    admin.set_password(password)
+    admin.activo = True
+    admin.rol = User.ROL_ADMIN
+    db.session.commit()
