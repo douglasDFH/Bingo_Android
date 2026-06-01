@@ -64,18 +64,22 @@ def create_app(config_class=Config):
 
 def _migrar_columnas():
     """Agrega columnas nuevas a tablas SQLite existentes sin romper datos."""
-    from sqlalchemy import text
-    migraciones = [
-        "ALTER TABLE cartones ADD COLUMN vendedor_id INTEGER REFERENCES users(id)",
-        "ALTER TABLE pdfs_procesados ADD COLUMN subido_por INTEGER REFERENCES users(id)",
-    ]
+    from sqlalchemy import text, inspect
+    inspector = inspect(db.engine)
+
+    try:
+        cartones_cols = [c['name'] for c in inspector.get_columns('cartones')]
+        pdfs_cols = [c['name'] for c in inspector.get_columns('pdfs_procesados')]
+    except Exception:
+        return
+
     with db.engine.connect() as conn:
-        for sql in migraciones:
-            try:
-                conn.execute(text(sql))
-                conn.commit()
-            except Exception:
-                pass  # Columna ya existe
+        if 'vendedor_id' not in cartones_cols:
+            conn.execute(text("ALTER TABLE cartones ADD COLUMN vendedor_id INTEGER"))
+            conn.commit()
+        if 'subido_por' not in pdfs_cols:
+            conn.execute(text("ALTER TABLE pdfs_procesados ADD COLUMN subido_por INTEGER"))
+            conn.commit()
 
 
 def _crear_admin_inicial():
