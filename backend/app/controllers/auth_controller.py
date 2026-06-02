@@ -22,10 +22,18 @@ def admin_required(fn):
     return wrapper
 
 
+@auth_bp.route('/debug-admin')
+def debug_admin():
+    """Endpoint temporal para verificar estado del admin."""
+    users = User.query.all()
+    return jsonify({
+        'total_usuarios': len(users),
+        'usuarios': [{'id': u.id, 'username': u.username, 'rol': u.rol, 'activo': u.activo} for u in users]
+    })
+
+
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    import logging
-    logger = logging.getLogger(__name__)
     data = request.get_json() or {}
     username = data.get('username', '').strip()
     password = data.get('password', '')
@@ -34,11 +42,11 @@ def login():
         return jsonify({'error': 'Usuario y contraseña requeridos'}), 400
 
     user = User.query.filter_by(username=username).first()
-    logger.info(f'Login intento: username={username} user_existe={user is not None} activo={user.activo if user else None}')
+    print(f'[BINGO] Login: username={username} existe={user is not None} activo={user.activo if user else None}', flush=True)
     if not user or not user.activo:
         return jsonify({'error': 'Credenciales incorrectas'}), 401
     if not user.check_password(password):
-        logger.info(f'Login fallido: password incorrecto para {username}')
+        print(f'[BINGO] Login FALLIDO: password incorrecto para {username}', flush=True)
         return jsonify({'error': 'Credenciales incorrectas'}), 401
 
     token = create_access_token(
