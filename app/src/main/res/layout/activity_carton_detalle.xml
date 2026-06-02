@@ -116,7 +116,7 @@
             <!-- Descargar -->
             <Button android:id="@+id/btnDescargar"
                 android:layout_width="match_parent" android:layout_height="52dp"
-                android:text="⬇ Descargar imagen del cartón"
+                android:text="📤 Compartir cartón"
                 android:backgroundTint="@color/blue" android:textColor="#fff"
                 android:layout_marginBottom="10dp" />
 

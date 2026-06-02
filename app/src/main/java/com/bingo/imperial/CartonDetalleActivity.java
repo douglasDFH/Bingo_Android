@@ -273,8 +273,15 @@ public class CartonDetalleActivity extends AppCompatActivity {
                     try (OutputStream os = getContentResolver().openOutputStream(uri)) {
                         os.write(bytes);
                     }
+                    handler.post(() -> {
+                        Toast.makeText(this, "Guardado en la galería", Toast.LENGTH_SHORT).show();
+                        android.content.Intent shareIntent = new android.content.Intent(android.content.Intent.ACTION_SEND);
+                        shareIntent.setType("image/jpeg");
+                        shareIntent.putExtra(android.content.Intent.EXTRA_STREAM, uri);
+                        shareIntent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(android.content.Intent.createChooser(shareIntent, "Compartir cartón"));
+                    });
                 }
-                handler.post(() -> Toast.makeText(this, "Guardado en la galería", Toast.LENGTH_SHORT).show());
             } catch (Exception e) {
                 handler.post(() -> Toast.makeText(this, "Error al descargar", Toast.LENGTH_SHORT).show());
             }
