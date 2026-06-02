@@ -24,6 +24,8 @@ def admin_required(fn):
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
+    import logging
+    logger = logging.getLogger(__name__)
     data = request.get_json() or {}
     username = data.get('username', '').strip()
     password = data.get('password', '')
@@ -31,8 +33,12 @@ def login():
     if not username or not password:
         return jsonify({'error': 'Usuario y contraseña requeridos'}), 400
 
-    user = User.query.filter_by(username=username, activo=True).first()
-    if not user or not user.check_password(password):
+    user = User.query.filter_by(username=username).first()
+    logger.info(f'Login intento: username={username} user_existe={user is not None} activo={user.activo if user else None}')
+    if not user or not user.activo:
+        return jsonify({'error': 'Credenciales incorrectas'}), 401
+    if not user.check_password(password):
+        logger.info(f'Login fallido: password incorrecto para {username}')
         return jsonify({'error': 'Credenciales incorrectas'}), 401
 
     token = create_access_token(

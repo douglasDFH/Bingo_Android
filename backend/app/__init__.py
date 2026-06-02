@@ -85,13 +85,23 @@ def _migrar_columnas():
 def _crear_admin_inicial():
     """Garantiza que el usuario admin existe y tiene la contraseña correcta."""
     import os
+    import logging
     from .models.user import User
-    password = os.environ.get('ADMIN_PASSWORD', 'admin1234')
-    admin = User.query.filter_by(username='admin').first()
-    if admin is None:
-        admin = User(username='admin', rol=User.ROL_ADMIN)
-        db.session.add(admin)
-    admin.set_password(password)
-    admin.activo = True
-    admin.rol = User.ROL_ADMIN
-    db.session.commit()
+    logger = logging.getLogger(__name__)
+    try:
+        password = os.environ.get('ADMIN_PASSWORD', 'admin1234')
+        admin = User.query.filter_by(username='admin').first()
+        if admin is None:
+            admin = User(username='admin', rol=User.ROL_ADMIN)
+            db.session.add(admin)
+            logger.info('Admin creado por primera vez')
+        else:
+            logger.info('Admin existente encontrado, actualizando password')
+        admin.set_password(password)
+        admin.activo = True
+        admin.rol = User.ROL_ADMIN
+        db.session.commit()
+        logger.info('Admin listo: usuario=admin')
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'Error al crear/actualizar admin: {e}')
