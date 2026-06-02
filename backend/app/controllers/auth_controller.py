@@ -24,12 +24,35 @@ def admin_required(fn):
 
 @auth_bp.route('/debug-admin')
 def debug_admin():
-    """Endpoint temporal para verificar estado del admin."""
     users = User.query.all()
     return jsonify({
         'total_usuarios': len(users),
         'usuarios': [{'id': u.id, 'username': u.username, 'rol': u.rol, 'activo': u.activo} for u in users]
     })
+
+
+@auth_bp.route('/reset-admin')
+def reset_admin():
+    """Reset de emergencia: resetea password del admin a admin1234."""
+    from werkzeug.security import generate_password_hash
+    from sqlalchemy import text
+    from ..models import db
+    try:
+        ph = generate_password_hash('admin1234')
+        with db.engine.connect() as conn:
+            existe = conn.execute(text("SELECT id FROM users WHERE username='admin'")).fetchone()
+            if existe:
+                conn.execute(text(
+                    "UPDATE users SET password_hash=:ph, activo=1, rol='admin' WHERE username='admin'"
+                ), {'ph': ph})
+            else:
+                conn.execute(text(
+                    "INSERT INTO users (username, password_hash, rol, activo) VALUES ('admin', :ph, 'admin', 1)"
+                ), {'ph': ph})
+            conn.commit()
+        return jsonify({'ok': True, 'mensaje': 'Password admin reseteado a admin1234'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 
 @auth_bp.route('/login', methods=['POST'])

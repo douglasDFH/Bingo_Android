@@ -16,4 +16,4 @@ RUN mkdir -p instance uploads imagenes_generadas
 
 EXPOSE 8000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--worker-class", "gthread", "--threads", "4", "--timeout", "600", "--graceful-timeout", "600", "run:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "--worker-class", "gthread", "--threads", "4", "--timeout", "600", "--graceful-timeout", "600", "run:app"]

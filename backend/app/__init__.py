@@ -83,23 +83,25 @@ def _migrar_columnas():
 
 
 def _crear_admin_inicial():
-    """Garantiza que el usuario admin existe y tiene la contraseña correcta."""
+    """Garantiza que el usuario admin existe y tiene la contraseña correcta usando SQL directo."""
     import os
-    from .models.user import User
+    from werkzeug.security import generate_password_hash
+    from sqlalchemy import text
+    password = os.environ.get('ADMIN_PASSWORD', 'admin1234')
+    password_hash = generate_password_hash(password)
     try:
-        password = os.environ.get('ADMIN_PASSWORD', 'admin1234')
-        admin = User.query.filter_by(username='admin').first()
-        if admin is None:
-            admin = User(username='admin', rol=User.ROL_ADMIN)
-            db.session.add(admin)
-            print('[BINGO] Admin creado por primera vez', flush=True)
-        else:
-            print(f'[BINGO] Admin encontrado id={admin.id} activo={admin.activo}, actualizando password', flush=True)
-        admin.set_password(password)
-        admin.activo = True
-        admin.rol = User.ROL_ADMIN
-        db.session.commit()
-        print('[BINGO] Admin listo OK - usuario=admin password=admin1234', flush=True)
+        with db.engine.connect() as conn:
+            existe = conn.execute(text("SELECT id FROM users WHERE username='admin'")).fetchone()
+            if existe:
+                conn.execute(text(
+                    "UPDATE users SET password_hash=:ph, activo=1, rol='admin' WHERE username='admin'"
+                ), {'ph': password_hash})
+                print('[BINGO] Admin actualizado OK', flush=True)
+            else:
+                conn.execute(text(
+                    "INSERT INTO users (username, password_hash, rol, activo) VALUES ('admin', :ph, 'admin', 1)"
+                ), {'ph': password_hash})
+                print('[BINGO] Admin creado OK', flush=True)
+            conn.commit()
     except Exception as e:
-        db.session.rollback()
-        print(f'[BINGO] ERROR al inicializar admin: {e}', flush=True)
+        print(f'[BINGO] ERROR admin init: {e}', flush=True)
