@@ -309,7 +309,10 @@ def upload_chunk():
 
 @api_bp.route('/upload-finalize', methods=['POST'])
 def upload_finalize():
-    data      = request.get_json() or {}
+    try:
+        data      = request.get_json(force=True) or {}
+    except Exception:
+        data = {}
     upload_id = data.get('upload_id')
 
     if not upload_id:
@@ -317,45 +320,63 @@ def upload_finalize():
 
     chunks_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'chunks', upload_id)
     if not os.path.isdir(chunks_dir):
-        return jsonify({'error': 'Upload no encontrado'}), 404
+        return jsonify({'error': 'Upload no encontrado. Puede que el contenedor se reinicio.'}), 404
 
-    user_id, _ = _usuario_actual()
+    try:
+        user_id, _ = _usuario_actual()
+    except Exception as e:
+        return jsonify({'error': f'Auth error: {e}'}), 401
+
     target_user_id = data.get('usuario_id') or user_id
 
     nombre_original = 'archivo.pdf'
     meta_path = os.path.join(chunks_dir, 'meta.txt')
     if os.path.exists(meta_path):
-        with open(meta_path) as f:
-            nombre_original = f.readline().strip()
+        try:
+            with open(meta_path) as f:
+                nombre_original = f.readline().strip()
+        except Exception:
+            pass
 
-    chunks = sorted(
-        [f for f in os.listdir(chunks_dir) if f.startswith('chunk_')],
-        key=lambda x: int(x.split('_')[1])
-    )
+    try:
+        chunks = sorted(
+            [f for f in os.listdir(chunks_dir) if f.startswith('chunk_')],
+            key=lambda x: int(x.split('_')[1])
+        )
+    except Exception as e:
+        return jsonify({'error': f'Error listando chunks: {e}'}), 500
+
     if not chunks:
         return jsonify({'error': 'Sin chunks'}), 400
 
     nombre_unico = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{secure_filename(nombre_original)}"
     ruta_pdf = os.path.join(current_app.config['UPLOAD_FOLDER'], nombre_unico)
 
-    with open(ruta_pdf, 'wb') as out:
-        for chunk_name in chunks:
-            with open(os.path.join(chunks_dir, chunk_name), 'rb') as f:
-                out.write(f.read())
+    try:
+        with open(ruta_pdf, 'wb') as out:
+            for chunk_name in chunks:
+                with open(os.path.join(chunks_dir, chunk_name), 'rb') as f:
+                    out.write(f.read())
+    except Exception as e:
+        return jsonify({'error': f'Error ensamblando PDF: {e}'}), 500
 
     shutil.rmtree(chunks_dir, ignore_errors=True)
 
-    pdf = PDFProcesado(
-        nombre_archivo=nombre_original,
-        ruta_archivo=ruta_pdf,
-        estado='procesando',
-        dpi=current_app.config['DPI_IMAGENES'],
-        subido_por=user_id,
-    )
-    db.session.add(pdf)
-    db.session.commit()
+    try:
+        pdf = PDFProcesado(
+            nombre_archivo=nombre_original,
+            ruta_archivo=ruta_pdf,
+            estado='procesando',
+            dpi=current_app.config['DPI_IMAGENES'],
+            subido_por=user_id,
+        )
+        db.session.add(pdf)
+        db.session.commit()
+    except Exception as e:
+        return jsonify({'error': f'Error en base de datos: {e}'}), 500
 
     app = current_app._get_current_object()
     threading.Thread(target=_procesar_pdf_async, args=(app, pdf.id, target_user_id), daemon=True).start()
 
+    print(f'[BINGO] upload_finalize OK: pdf_id={pdf.id} nombre={nombre_original}', flush=True)
     return jsonify({'ok': True, 'pdf_id': pdf.id, 'nombre': nombre_original, 'estado': 'procesando'})

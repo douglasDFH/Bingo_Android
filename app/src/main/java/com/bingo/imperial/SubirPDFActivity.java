@@ -38,7 +38,7 @@ import okhttp3.Response;
 
 public class SubirPDFActivity extends AppCompatActivity {
 
-    private static final int CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB por chunk
+    private static final int CHUNK_SIZE = 1 * 1024 * 1024; // 1 MB por chunk (evita límites del proxy)
     private static final int MAX_REINTENTOS = 3;
 
     private final OkHttpClient chunkClient = new OkHttpClient.Builder()

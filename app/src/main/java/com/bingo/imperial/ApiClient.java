@@ -51,8 +51,13 @@ public class ApiClient {
                 callback.onError(e.getMessage());
             }
             @Override public void onResponse(Call call, Response response) throws IOException {
-                if (!response.isSuccessful()) { callback.onError("Error " + response.code()); return; }
-                callback.onSuccess(response.body().string());
+                String bodyStr = response.body() != null ? response.body().string() : "";
+                if (!response.isSuccessful()) { callback.onError("HTTP " + response.code()); return; }
+                if (bodyStr.startsWith("<") || bodyStr.startsWith("<!")) {
+                    callback.onError("Proxy error: respuesta HTML inesperada (HTTP " + response.code() + ")");
+                    return;
+                }
+                callback.onSuccess(bodyStr);
             }
         });
     }
@@ -65,8 +70,17 @@ public class ApiClient {
                 callback.onError(e.getMessage());
             }
             @Override public void onResponse(Call call, Response response) throws IOException {
-                if (!response.isSuccessful()) { callback.onError("Error " + response.code()); return; }
-                callback.onSuccess(response.body().string());
+                String bodyStr = response.body() != null ? response.body().string() : "";
+                if (!response.isSuccessful()) {
+                    callback.onError("HTTP " + response.code() + ": " + bodyStr.substring(0, Math.min(200, bodyStr.length())));
+                    return;
+                }
+                // Si el servidor devuelve HTML en vez de JSON, es un problema del proxy
+                if (bodyStr.startsWith("<") || bodyStr.startsWith("<!")) {
+                    callback.onError("Proxy error (HTTP " + response.code() + "): el servidor devolvio HTML. Verifica HTTPS en Coolify. Respuesta: " + bodyStr.substring(0, Math.min(200, bodyStr.length())));
+                    return;
+                }
+                callback.onSuccess(bodyStr);
             }
         });
     }
