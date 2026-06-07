@@ -34,6 +34,18 @@ class PDFProcessor:
                 return m.group(1)
         return None
 
+    @staticmethod
+    def formatear_numero(numero_str: str) -> str:
+        """Convierte cualquier número extraído del PDF a exactamente 5 dígitos.
+        Ejemplo: '100001' → '00001', '42' → '00042', '99999' → '99999'
+        Si supera 5 dígitos toma los últimos 5.
+        """
+        try:
+            n = abs(int(numero_str)) % 100000
+            return str(n).zfill(5)
+        except (ValueError, TypeError):
+            return numero_str
+
     def _procesar_pagina(self, pdf_path: str, indice: int,
                          carpeta_salida: str, ext: str) -> dict:
         """Procesa una sola página. Thread-safe: abre su propia instancia del PDF."""
@@ -45,8 +57,10 @@ class PDFProcessor:
                 page = doc.load_page(indice)
                 texto = page.get_text()
                 numero = self._extraer_numero_de_texto(texto)
-                if not numero:
-                    numero = f'sin_numero_pagina_{indice + 1}'
+                if numero:
+                    numero = self.formatear_numero(numero)
+                else:
+                    numero = f'sin_numero_{str(indice + 1).zfill(5)}'
                 pix = page.get_pixmap(matrix=matriz, alpha=False)
             finally:
                 doc.close()
