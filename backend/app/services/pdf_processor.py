@@ -36,7 +36,7 @@ class PDFProcessor:
 
     def _procesar_pagina(self, pdf_path: str, indice: int,
                          carpeta_salida: str, ext: str) -> dict:
-        """Procesa una sola página. Cada hilo abre su propia instancia del PDF."""
+        """Procesa una sola página. Thread-safe: abre su propia instancia del PDF."""
         try:
             zoom = self.dpi / 72.0
             matriz = fitz.Matrix(zoom, zoom)
@@ -78,7 +78,14 @@ class PDFProcessor:
             }
 
     def procesar(self, pdf_path: str, carpeta_salida: str,
-                 progreso_cb: Optional[Callable[[int, int], None]] = None) -> dict:
+                 carton_cb: Optional[Callable] = None,
+                 error_cb: Optional[Callable] = None,
+                 progreso_cb: Optional[Callable] = None) -> dict:
+        """
+        Procesa el PDF en paralelo (3 workers).
+        carton_cb(item): llamado en el hilo principal cuando cada página OK termina.
+        error_cb(item): llamado cuando una página falla.
+        """
         if not os.path.isfile(pdf_path):
             raise PDFProcessorError(f'No se pudo abrir el PDF: {pdf_path}')
         os.makedirs(carpeta_salida, exist_ok=True)
@@ -92,7 +99,6 @@ class PDFProcessor:
             raise PDFProcessorError(f'No se pudo abrir el PDF: {e}')
 
         ok, error = [], []
-        completadas = 0
 
         with ThreadPoolExecutor(max_workers=3) as executor:
             futuros = {
@@ -103,14 +109,24 @@ class PDFProcessor:
                 resultado = futuro.result()
                 if resultado['ok']:
                     ok.append(resultado['ok'])
+                    # Callback en tiempo real para guardar cartón inmediatamente
+                    if carton_cb:
+                        try:
+                            carton_cb(resultado['ok'])
+                        except Exception:
+                            pass
                 else:
                     error.append(resultado['error'])
-                completadas += 1
-                if progreso_cb and completadas % 10 == 0:
-                    progreso_cb(completadas, total)
+                    if error_cb:
+                        try:
+                            error_cb(resultado['error'])
+                        except Exception:
+                            pass
+                if progreso_cb:
+                    try:
+                        progreso_cb(len(ok) + len(error), total)
+                    except Exception:
+                        pass
 
         ok.sort(key=lambda x: x['indice'])
-        if progreso_cb:
-            progreso_cb(total, total)
-
         return {'ok': ok, 'error': error, 'total': total}

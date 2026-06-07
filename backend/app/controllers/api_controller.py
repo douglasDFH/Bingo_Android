@@ -254,17 +254,16 @@ def _procesar_pdf_async(app, pdf_id, vendedor_id=None):
                 dpi=app.config['DPI_IMAGENES'],
                 formato=app.config['FORMATO_IMAGEN'],
             )
-            resultado = processor.procesar(pdf.ruta_archivo, carpeta_imgs)
 
             pdf.carpeta_imagenes = carpeta_imgs
-            pdf.total_paginas = resultado['total']
-            pdf.paginas_ok = len(resultado['ok'])
-            pdf.paginas_error = len(resultado['error'])
-            pdf.estado = 'completado' if not resultado['error'] else 'completado_con_errores'
+            db.session.commit()
 
-            for item in resultado['ok']:
+            pendientes = []  # cartones aún no guardados
+
+            def guardar_carton(item):
+                """Llamado por el procesador cada vez que termina una página."""
                 if Carton.query.filter_by(numero=item['numero']).first():
-                    continue
+                    return
                 db.session.add(Carton(
                     numero=item['numero'],
                     pdf_id=pdf.id,
@@ -273,11 +272,37 @@ def _procesar_pdf_async(app, pdf_id, vendedor_id=None):
                     estado=Carton.ESTADO_DISPONIBLE,
                     vendedor_id=vendedor_id,
                 ))
+                pdf.paginas_ok = (pdf.paginas_ok or 0) + 1
+                pendientes.append(1)
+                # Commit cada 5 cartones para que el polling lo vea
+                if len(pendientes) % 5 == 0:
+                    db.session.commit()
+
+            def on_error(item):
+                pdf.paginas_error = (pdf.paginas_error or 0) + 1
+
+            resultado = processor.procesar(
+                pdf.ruta_archivo, carpeta_imgs,
+                carton_cb=guardar_carton,
+                error_cb=on_error,
+            )
+
+            pdf.total_paginas = resultado['total']
+            pdf.paginas_ok = len(resultado['ok'])
+            pdf.paginas_error = len(resultado['error'])
+            pdf.estado = 'completado' if not resultado['error'] else 'completado_con_errores'
             db.session.commit()
+            print(f'[BINGO] PDF {pdf_id} procesado: {pdf.paginas_ok} cartones, {pdf.paginas_error} errores', flush=True)
+
         except Exception as e:
-            pdf.estado = 'error'
-            pdf.mensaje_error = str(e)[:1000]
-            db.session.commit()
+            import traceback
+            print(f'[BINGO] ERROR procesando PDF {pdf_id}: {e}\n{traceback.format_exc()}', flush=True)
+            try:
+                pdf.estado = 'error'
+                pdf.mensaje_error = str(e)[:1000]
+                db.session.commit()
+            except Exception:
+                pass
 
 
 # ── Chunked upload ────────────────────────────────────────────────────────────
