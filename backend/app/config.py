@@ -23,5 +23,5 @@ class Config:
     MAX_CONTENT_LENGTH = 200 * 1024 * 1024
 
     # Parámetros de procesamiento
-    DPI_IMAGENES = 100
+    DPI_IMAGENES = 72
     FORMATO_IMAGEN = 'jpeg'  # 'jpeg' o 'png'
