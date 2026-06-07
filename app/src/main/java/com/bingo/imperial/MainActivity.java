@@ -74,8 +74,9 @@ public class MainActivity extends AppCompatActivity {
             startActivity(i);
         });
 
-        android.widget.Button btnUsuarios = findViewById(R.id.btnUsuarios);
-        android.widget.Button btnMigrarNumeros = findViewById(R.id.btnMigrarNumeros);
+        android.widget.Button btnUsuarios          = findViewById(R.id.btnUsuarios);
+        android.widget.Button btnMigrarNumeros      = findViewById(R.id.btnMigrarNumeros);
+        android.widget.Button btnRegenerarImagenes  = findViewById(R.id.btnRegenerarImagenes);
         if (esAdmin) {
             btnUsuarios.setVisibility(android.view.View.VISIBLE);
             btnUsuarios.setOnClickListener(v ->
@@ -83,6 +84,9 @@ public class MainActivity extends AppCompatActivity {
 
             btnMigrarNumeros.setVisibility(android.view.View.VISIBLE);
             btnMigrarNumeros.setOnClickListener(v -> confirmarMigracion());
+
+            btnRegenerarImagenes.setVisibility(android.view.View.VISIBLE);
+            btnRegenerarImagenes.setOnClickListener(v -> confirmarRegenerarImagenes());
         }
 
         cargarDatos();
@@ -156,6 +160,56 @@ public class MainActivity extends AppCompatActivity {
     private void mostrarError() {
         errorCard.setVisibility(View.VISIBLE);
         statsContainer.setVisibility(View.GONE);
+    }
+
+    private void confirmarRegenerarImagenes() {
+        new AlertDialog.Builder(this)
+                .setTitle("Regenerar imágenes")
+                .setMessage("Esto reemplaza la imagen de TODOS los cartones existentes usando el nuevo template con el número en el círculo.\n\n¿Continuar?")
+                .setPositiveButton("Sí, regenerar", (d, w) -> ejecutarRegenerarImagenes())
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private void ejecutarRegenerarImagenes() {
+        android.widget.Button btn = findViewById(R.id.btnRegenerarImagenes);
+        btn.setEnabled(false);
+        btn.setText("Regenerando...");
+
+        ApiClient.post("/admin/regenerar-imagenes", "{}", new ApiClient.Callback() {
+            @Override
+            public void onSuccess(String body) {
+                handler.post(() -> {
+                    try {
+                        org.json.JSONObject j = new org.json.JSONObject(body);
+                        int regenerados = j.optInt("regenerados", 0);
+                        int errores     = j.optInt("errores", 0);
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("Imágenes regeneradas ✅")
+                                .setMessage("Regenerados: " + regenerados + "\nErrores: " + errores +
+                                        "\n\nAbre cualquier cartón para ver el nuevo diseño.")
+                                .setPositiveButton("OK", null)
+                                .show();
+                    } catch (Exception e) {
+                        Toast.makeText(MainActivity.this, "Imágenes regeneradas", Toast.LENGTH_SHORT).show();
+                    }
+                    btn.setEnabled(true);
+                    btn.setText("🖼 Regenerar imágenes con template");
+                });
+            }
+            @Override
+            public void onError(String error) {
+                handler.post(() -> {
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("Error")
+                            .setMessage("No se pudo regenerar: " + error)
+                            .setPositiveButton("OK", null)
+                            .show();
+                    btn.setEnabled(true);
+                    btn.setText("🖼 Regenerar imágenes con template");
+                });
+            }
+        });
     }
 
     private void confirmarMigracion() {

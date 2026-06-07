@@ -1,10 +1,25 @@
-"""Servicio de procesamiento de PDF con procesamiento paralelo de páginas."""
+"""Servicio de procesamiento de PDF.
+Extrae el número de cada página y genera una imagen del cartón
+usando el template oficial con el número superpuesto en el círculo.
+"""
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Optional
 
 import fitz  # PyMuPDF
+from PIL import Image, ImageDraw, ImageFont
+
+# Ruta al template del cartón
+TEMPLATE_PATH = os.path.join(
+    os.path.dirname(__file__), '..', 'static', 'carton_template.jpeg'
+)
+
+# Posición relativa del círculo vacío en el template
+# (ajustada a la imagen "carton .jpeg")
+CIRCULO_CX = 0.790   # centro X como fracción del ancho
+CIRCULO_CY = 0.340   # centro Y como fracción del alto
+CIRCULO_R  = 0.145   # radio como fracción del ancho
 
 
 class PDFProcessorError(Exception):
@@ -12,14 +27,39 @@ class PDFProcessorError(Exception):
 
 
 class PDFProcessor:
-    REGEX_NUMERO = re.compile(r'^\s*(\d{3,8})\s*$')
+    REGEX_NUMERO      = re.compile(r'^\s*(\d{3,8})\s*$')
     REGEX_NUMERO_INLINE = re.compile(r'\b(\d{3,8})\b')
 
     def __init__(self, dpi: int = 72, formato: str = 'jpeg'):
-        self.dpi = dpi
+        self.dpi     = dpi
         self.formato = formato.lower()
         if self.formato not in ('jpeg', 'png'):
             raise ValueError("formato debe ser 'jpeg' o 'png'")
+
+        # Cargar template una sola vez
+        if not os.path.isfile(TEMPLATE_PATH):
+            raise PDFProcessorError(
+                f'Template del cartón no encontrado: {TEMPLATE_PATH}'
+            )
+        self._template = Image.open(TEMPLATE_PATH).convert('RGB')
+
+        # Buscar fuente
+        self._font_path = self._encontrar_fuente()
+
+    # ── utilidades ────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _encontrar_fuente():
+        candidatos = [
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+            '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
+        ]
+        for p in candidatos:
+            if os.path.isfile(p):
+                return p
+        return None  # usará fuente default de PIL
 
     def _extraer_numero_de_texto(self, texto: str):
         lines = [l.strip() for l in texto.split('\n') if l.strip()]
@@ -36,9 +76,8 @@ class PDFProcessor:
 
     @staticmethod
     def formatear_numero(numero_str: str) -> str:
-        """Convierte cualquier número extraído del PDF a exactamente 5 dígitos.
-        Ejemplo: '100001' → '00001', '42' → '00042', '99999' → '99999'
-        Si supera 5 dígitos toma los últimos 5.
+        """Convierte el número extraído del PDF a exactamente 5 dígitos.
+        Ejemplo: '100001' → '00001', '42' → '00042'.
         """
         try:
             n = abs(int(numero_str)) % 100000
@@ -46,26 +85,68 @@ class PDFProcessor:
         except (ValueError, TypeError):
             return numero_str
 
+    def generar_imagen_carton(self, numero: str, ruta_destino: str) -> None:
+        """Crea la imagen del cartón usando el template y escribe el número
+        centrado en el círculo vacío de la zona superior derecha."""
+        img  = self._template.copy()
+        draw = ImageDraw.Draw(img)
+        W, H = img.size
+
+        # Centro y radio del círculo en píxeles
+        cx = int(W * CIRCULO_CX)
+        cy = int(H * CIRCULO_CY)
+        r  = int(W * CIRCULO_R)
+
+        # Tamaño de fuente: que el texto ocupe ~75% del diámetro
+        font_size = int(r * 1.0)   # 1 radio = buen tamaño para 5 chars
+        font = None
+        if self._font_path:
+            try:
+                font = ImageFont.truetype(self._font_path, font_size)
+            except Exception:
+                font = None
+
+        if font is None:
+            # Fuente default de PIL (muy pequeña, pero funcional)
+            font = ImageFont.load_default()
+
+        # Medir texto y centrar
+        bbox = draw.textbbox((0, 0), numero, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+        x  = cx - tw // 2
+        y  = cy - th // 2
+
+        # Sombra oscura para legibilidad
+        shadow_offset = max(2, font_size // 20)
+        draw.text((x + shadow_offset, y + shadow_offset),
+                  numero, fill='#2D0A00', font=font)
+        # Texto dorado principal
+        draw.text((x, y), numero, fill='#FFD700', font=font)
+
+        os.makedirs(os.path.dirname(ruta_destino), exist_ok=True)
+        img.save(ruta_destino, 'JPEG', quality=88)
+
+    # ── procesamiento ─────────────────────────────────────────────────────────
+
     def _procesar_pagina(self, pdf_path: str, indice: int,
                          carpeta_salida: str, ext: str) -> dict:
-        """Procesa una sola página. Thread-safe: abre su propia instancia del PDF."""
+        """Extrae el número de la página y genera la imagen del cartón."""
         try:
-            zoom = self.dpi / 72.0
-            matriz = fitz.Matrix(zoom, zoom)
             doc = fitz.open(pdf_path)
             try:
-                page = doc.load_page(indice)
-                texto = page.get_text()
-                numero = self._extraer_numero_de_texto(texto)
-                if numero:
-                    numero = self.formatear_numero(numero)
-                else:
-                    numero = f'sin_numero_{str(indice + 1).zfill(5)}'
-                pix = page.get_pixmap(matrix=matriz, alpha=False)
+                texto  = doc.load_page(indice).get_text()
             finally:
                 doc.close()
 
+            numero = self._extraer_numero_de_texto(texto)
+            if numero:
+                numero = self.formatear_numero(numero)
+            else:
+                numero = f'sin_numero_{str(indice + 1).zfill(5)}'
+
             ruta_destino = os.path.join(carpeta_salida, f'{numero}.{ext}')
+            # Evitar sobreescribir si ya existe un número igual
             if os.path.exists(ruta_destino):
                 contador = 2
                 while True:
@@ -75,10 +156,7 @@ class PDFProcessor:
                         break
                     contador += 1
 
-            if self.formato == 'jpeg':
-                pix.save(ruta_destino, jpg_quality=75)
-            else:
-                pix.save(ruta_destino)
+            self.generar_imagen_carton(numero, ruta_destino)
 
             return {
                 'ok': {'indice': indice, 'numero': numero,
@@ -93,20 +171,15 @@ class PDFProcessor:
 
     def procesar(self, pdf_path: str, carpeta_salida: str,
                  carton_cb: Optional[Callable] = None,
-                 error_cb: Optional[Callable] = None,
+                 error_cb:  Optional[Callable] = None,
                  progreso_cb: Optional[Callable] = None) -> dict:
-        """
-        Procesa el PDF en paralelo (3 workers).
-        carton_cb(item): llamado en el hilo principal cuando cada página OK termina.
-        error_cb(item): llamado cuando una página falla.
-        """
         if not os.path.isfile(pdf_path):
-            raise PDFProcessorError(f'No se pudo abrir el PDF: {pdf_path}')
+            raise PDFProcessorError(f'PDF no encontrado: {pdf_path}')
         os.makedirs(carpeta_salida, exist_ok=True)
         ext = 'jpg' if self.formato == 'jpeg' else 'png'
 
         try:
-            doc = fitz.open(pdf_path)
+            doc   = fitz.open(pdf_path)
             total = doc.page_count
             doc.close()
         except Exception as e:
@@ -116,14 +189,15 @@ class PDFProcessor:
 
         with ThreadPoolExecutor(max_workers=3) as executor:
             futuros = {
-                executor.submit(self._procesar_pagina, pdf_path, i, carpeta_salida, ext): i
+                executor.submit(
+                    self._procesar_pagina, pdf_path, i, carpeta_salida, ext
+                ): i
                 for i in range(total)
             }
             for futuro in as_completed(futuros):
                 resultado = futuro.result()
                 if resultado['ok']:
                     ok.append(resultado['ok'])
-                    # Callback en tiempo real para guardar cartón inmediatamente
                     if carton_cb:
                         try:
                             carton_cb(resultado['ok'])

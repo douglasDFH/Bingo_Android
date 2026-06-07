@@ -305,6 +305,56 @@ def _procesar_pdf_async(app, pdf_id, vendedor_id=None):
                 pass
 
 
+# ── Admin: regenerar imágenes con template ───────────────────────────────────
+
+@api_bp.route('/admin/regenerar-imagenes', methods=['POST'])
+def regenerar_imagenes():
+    """Regenera la imagen de todos los cartones usando el template oficial."""
+    _, rol = _usuario_actual()
+    if rol != User.ROL_ADMIN:
+        return jsonify({'error': 'Solo admin'}), 403
+
+    from ..services.pdf_processor import PDFProcessor
+    try:
+        processor = PDFProcessor(
+            dpi=current_app.config['DPI_IMAGENES'],
+            formato=current_app.config['FORMATO_IMAGEN'],
+        )
+    except Exception as e:
+        return jsonify({'error': f'No se pudo cargar el template: {e}'}), 500
+
+    cartones   = Carton.query.all()
+    ok_count   = 0
+    err_count  = 0
+    errores    = []
+
+    for carton in cartones:
+        try:
+            numero = carton.numero or 'sin_numero'
+            carpeta = os.path.dirname(carton.ruta_imagen) if carton.ruta_imagen else \
+                      os.path.join(current_app.config['IMAGENES_FOLDER'],
+                                   f'pdf_{carton.pdf_id}')
+            ext = current_app.config.get('FORMATO_IMAGEN', 'jpeg')
+            ext = 'jpg' if ext == 'jpeg' else ext
+            nueva_ruta = os.path.join(carpeta, f'{numero}.{ext}')
+
+            processor.generar_imagen_carton(numero, nueva_ruta)
+            carton.ruta_imagen = nueva_ruta
+            ok_count += 1
+        except Exception as e:
+            err_count += 1
+            errores.append(f'Cartón {carton.numero}: {e}')
+
+    db.session.commit()
+    print(f'[BINGO] regenerar_imagenes: {ok_count} OK, {err_count} errores', flush=True)
+    return jsonify({
+        'ok': True,
+        'regenerados': ok_count,
+        'errores': err_count,
+        'detalle_errores': errores[:10],
+    })
+
+
 # ── Migración de números a 5 dígitos ─────────────────────────────────────────
 
 @api_bp.route('/admin/migrar-numeros', methods=['POST'])
