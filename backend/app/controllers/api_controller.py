@@ -307,51 +307,64 @@ def _procesar_pdf_async(app, pdf_id, vendedor_id=None):
 
 # ── Admin: regenerar imágenes con template ───────────────────────────────────
 
+def _regenerar_imagenes_async(app):
+    """Hilo de fondo: regenera imágenes de todos los cartones con el template."""
+    with app.app_context():
+        from ..services.pdf_processor import PDFProcessor
+        try:
+            processor = PDFProcessor(
+                dpi=app.config['DPI_IMAGENES'],
+                formato=app.config['FORMATO_IMAGEN'],
+            )
+        except Exception as e:
+            print(f'[BINGO] regenerar ERROR cargando template: {e}', flush=True)
+            return
+
+        cartones  = Carton.query.all()
+        total     = len(cartones)
+        ok_count  = 0
+        err_count = 0
+        ext = app.config.get('FORMATO_IMAGEN', 'jpeg')
+        ext = 'jpg' if ext == 'jpeg' else ext
+
+        print(f'[BINGO] regenerar_imagenes: iniciando {total} cartones', flush=True)
+
+        for carton in cartones:
+            try:
+                numero  = carton.numero or 'sin_numero'
+                carpeta = os.path.dirname(carton.ruta_imagen) if carton.ruta_imagen else \
+                          os.path.join(app.config['IMAGENES_FOLDER'], f'pdf_{carton.pdf_id}')
+                nueva_ruta = os.path.join(carpeta, f'{numero}.{ext}')
+                processor.generar_imagen_carton(numero, nueva_ruta)
+                carton.ruta_imagen = nueva_ruta
+                ok_count += 1
+                if ok_count % 50 == 0:
+                    db.session.commit()
+                    print(f'[BINGO] regenerar progreso: {ok_count}/{total}', flush=True)
+            except Exception as e:
+                err_count += 1
+                print(f'[BINGO] regenerar ERROR carton {carton.numero}: {e}', flush=True)
+
+        db.session.commit()
+        print(f'[BINGO] regenerar_imagenes LISTO: {ok_count} OK, {err_count} errores', flush=True)
+
+
 @api_bp.route('/admin/regenerar-imagenes', methods=['POST'])
 def regenerar_imagenes():
-    """Regenera la imagen de todos los cartones usando el template oficial."""
+    """Inicia la regeneración de imágenes en segundo plano y responde de inmediato."""
     _, rol = _usuario_actual()
     if rol != User.ROL_ADMIN:
         return jsonify({'error': 'Solo admin'}), 403
 
-    from ..services.pdf_processor import PDFProcessor
-    try:
-        processor = PDFProcessor(
-            dpi=current_app.config['DPI_IMAGENES'],
-            formato=current_app.config['FORMATO_IMAGEN'],
-        )
-    except Exception as e:
-        return jsonify({'error': f'No se pudo cargar el template: {e}'}), 500
+    total = Carton.query.count()
+    app   = current_app._get_current_object()
+    threading.Thread(target=_regenerar_imagenes_async, args=(app,), daemon=True).start()
 
-    cartones   = Carton.query.all()
-    ok_count   = 0
-    err_count  = 0
-    errores    = []
-
-    for carton in cartones:
-        try:
-            numero = carton.numero or 'sin_numero'
-            carpeta = os.path.dirname(carton.ruta_imagen) if carton.ruta_imagen else \
-                      os.path.join(current_app.config['IMAGENES_FOLDER'],
-                                   f'pdf_{carton.pdf_id}')
-            ext = current_app.config.get('FORMATO_IMAGEN', 'jpeg')
-            ext = 'jpg' if ext == 'jpeg' else ext
-            nueva_ruta = os.path.join(carpeta, f'{numero}.{ext}')
-
-            processor.generar_imagen_carton(numero, nueva_ruta)
-            carton.ruta_imagen = nueva_ruta
-            ok_count += 1
-        except Exception as e:
-            err_count += 1
-            errores.append(f'Cartón {carton.numero}: {e}')
-
-    db.session.commit()
-    print(f'[BINGO] regenerar_imagenes: {ok_count} OK, {err_count} errores', flush=True)
     return jsonify({
         'ok': True,
-        'regenerados': ok_count,
-        'errores': err_count,
-        'detalle_errores': errores[:10],
+        'mensaje': f'Regeneración iniciada en segundo plano para {total} cartones. '
+                   f'En unos minutos todas las imágenes estarán actualizadas.',
+        'total': total,
     })
 
 
