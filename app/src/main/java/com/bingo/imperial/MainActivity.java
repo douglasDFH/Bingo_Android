@@ -75,10 +75,14 @@ public class MainActivity extends AppCompatActivity {
         });
 
         android.widget.Button btnUsuarios = findViewById(R.id.btnUsuarios);
+        android.widget.Button btnMigrarNumeros = findViewById(R.id.btnMigrarNumeros);
         if (esAdmin) {
             btnUsuarios.setVisibility(android.view.View.VISIBLE);
             btnUsuarios.setOnClickListener(v ->
                     startActivity(new Intent(this, UsuariosActivity.class)));
+
+            btnMigrarNumeros.setVisibility(android.view.View.VISIBLE);
+            btnMigrarNumeros.setOnClickListener(v -> confirmarMigracion());
         }
 
         cargarDatos();
@@ -152,5 +156,63 @@ public class MainActivity extends AppCompatActivity {
     private void mostrarError() {
         errorCard.setVisibility(View.VISIBLE);
         statsContainer.setVisibility(View.GONE);
+    }
+
+    private void confirmarMigracion() {
+        new AlertDialog.Builder(this)
+                .setTitle("Migrar números a 5 dígitos")
+                .setMessage("Esto convertirá todos los números de cartones existentes al formato de 5 dígitos.\n\nEjemplo: 100001 → 00001\n\n¿Continuar?")
+                .setPositiveButton("Sí, migrar", (d, w) -> ejecutarMigracion())
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private void ejecutarMigracion() {
+        android.widget.Button btn = findViewById(R.id.btnMigrarNumeros);
+        btn.setEnabled(false);
+        btn.setText("Migrando...");
+
+        ApiClient.post("/admin/migrar-numeros", "{}", new ApiClient.Callback() {
+            @Override
+            public void onSuccess(String body) {
+                handler.post(() -> {
+                    try {
+                        org.json.JSONObject j = new org.json.JSONObject(body);
+                        int actualizados = j.optInt("actualizados", 0);
+                        int sinCambio    = j.optInt("sin_cambio", 0);
+                        int colisiones   = j.optInt("colisiones", 0);
+                        int total        = j.optInt("total", 0);
+
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("Migración completada ✅")
+                                .setMessage(
+                                        "Total cartones: " + total + "\n" +
+                                        "Actualizados:   " + actualizados + "\n" +
+                                        "Ya estaban OK:  " + sinCambio + "\n" +
+                                        (colisiones > 0 ? "Con conflicto: " + colisiones : "")
+                                )
+                                .setPositiveButton("OK", null)
+                                .show();
+                    } catch (Exception e) {
+                        Toast.makeText(MainActivity.this, "Migración completada", Toast.LENGTH_SHORT).show();
+                    }
+                    btn.setEnabled(true);
+                    btn.setText("🔢 Migrar cartones a 5 dígitos");
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                handler.post(() -> {
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("Error")
+                            .setMessage("No se pudo migrar: " + error)
+                            .setPositiveButton("OK", null)
+                            .show();
+                    btn.setEnabled(true);
+                    btn.setText("🔢 Migrar cartones a 5 dígitos");
+                });
+            }
+        });
     }
 }
