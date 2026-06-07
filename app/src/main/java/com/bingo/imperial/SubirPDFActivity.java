@@ -266,34 +266,53 @@ public class SubirPDFActivity extends AppCompatActivity {
     }
 
     private void finalizarUpload(String uploadId) {
-        try {
-            JSONObject body = new JSONObject();
-            body.put("upload_id", uploadId);
+        new Thread(() -> {
+            try {
+                JSONObject bodyJson = new JSONObject();
+                bodyJson.put("upload_id", uploadId);
+                if (targetUserId > 0) bodyJson.put("usuario_id", targetUserId);
 
-            if (targetUserId > 0) body.put("usuario_id", targetUserId);
+                // Cliente fresco para evitar conexiones sucias del pool compartido
+                OkHttpClient finalizeClient = new OkHttpClient.Builder()
+                        .connectTimeout(30, TimeUnit.SECONDS)
+                        .writeTimeout(60, TimeUnit.SECONDS)
+                        .readTimeout(60, TimeUnit.SECONDS)
+                        .build();
 
-            ApiClient.post("/upload-finalize", body.toString(), new ApiClient.Callback() {
-                @Override
-                public void onSuccess(String response) {
+                okhttp3.RequestBody rb = okhttp3.RequestBody.create(
+                        bodyJson.toString(),
+                        okhttp3.MediaType.get("application/json; charset=utf-8"));
+                okhttp3.Request req = new okhttp3.Request.Builder()
+                        .url(Config.BASE_URL + "/upload-finalize")
+                        .header("Authorization", "Bearer " + ApiClient.getToken())
+                        .post(rb)
+                        .build();
+
+                try (okhttp3.Response response = finalizeClient.newCall(req).execute()) {
+                    String respBody = response.body() != null ? response.body().string() : "(vacío)";
+                    int code = response.code();
+
+                    if (!response.isSuccessful()) {
+                        mostrarErrorDialog("Error HTTP " + code, respBody);
+                        return;
+                    }
+                    if (respBody.startsWith("<") || respBody.startsWith("<!")) {
+                        mostrarErrorDialog("Proxy devolvió HTML (HTTP " + code + ")",
+                                "El servidor devolvió HTML en vez de JSON.\n\nPrimeros 500 chars:\n"
+                                + respBody.substring(0, Math.min(500, respBody.length())));
+                        return;
+                    }
+                    JSONObject j = new JSONObject(respBody);
+                    pdfId = j.getInt("pdf_id");
                     handler.post(() -> {
-                        try {
-                            JSONObject j = new JSONObject(response);
-                            pdfId = j.getInt("pdf_id");
-                            actualizarProgreso("Procesando páginas... puede tardar unos minutos.", pdfId, pdfId);
-                            iniciarPolling();
-                        } catch (Exception e) {
-                            mostrarError("Parse error: " + e.getMessage() + "\nRespuesta: " + response.substring(0, Math.min(300, response.length())));
-                        }
+                        actualizarProgreso("Procesando páginas... puede tardar unos minutos.", pdfId, pdfId);
+                        iniciarPolling();
                     });
                 }
-                @Override
-                public void onError(String error) {
-                    mostrarError("Error al finalizar: " + error);
-                }
-            });
-        } catch (Exception e) {
-            mostrarError("Error al finalizar");
-        }
+            } catch (Exception e) {
+                mostrarErrorDialog("Error al finalizar", e.getClass().getSimpleName() + ": " + e.getMessage());
+            }
+        }).start();
     }
 
     private void iniciarPolling() {
@@ -362,10 +381,18 @@ public class SubirPDFActivity extends AppCompatActivity {
     }
 
     private void mostrarError(String msg) {
+        mostrarErrorDialog("Error", msg);
+    }
+
+    private void mostrarErrorDialog(String titulo, String msg) {
         handler.post(() -> {
             progressCard.setVisibility(View.GONE);
             btnSubir.setEnabled(true);
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(titulo)
+                    .setMessage(msg)
+                    .setPositiveButton("OK", null)
+                    .show();
         });
     }
 

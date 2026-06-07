@@ -83,7 +83,13 @@ public class LoginActivity extends AppCompatActivity {
 
                 @Override
                 public void onError(String error) {
-                    handler.post(() -> mostrarError("Usuario o contraseña incorrectos"));
+                    handler.post(() -> {
+                        if (error != null && (error.startsWith("HTTP 4") || error.startsWith("HTTP 5"))) {
+                            mostrarError("Usuario o contraseña incorrectos");
+                        } else {
+                            mostrarError("Error de conexión:\n" + error);
+                        }
+                    });
                 }
             });
         } catch (Exception e) {
