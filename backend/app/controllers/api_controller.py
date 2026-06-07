@@ -282,7 +282,7 @@ def _procesar_pdf_async(app, pdf_id, vendedor_id=None):
 
 # ── Chunked upload ────────────────────────────────────────────────────────────
 
-@api_bp.route('/upload-chunk', methods=['POST'])
+@api_bp.route('/pdf-parte', methods=['POST'])
 def upload_chunk():
     upload_id    = request.form.get('upload_id')
     chunk_index  = request.form.get('chunk_index', type=int)
@@ -307,7 +307,7 @@ def upload_chunk():
     return jsonify({'ok': True, 'chunk': chunk_index})
 
 
-@api_bp.route('/upload-finalize', methods=['POST'])
+@api_bp.route('/pdf-completar', methods=['POST'])
 def upload_finalize():
     try:
         data      = request.get_json(force=True) or {}

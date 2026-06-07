@@ -38,7 +38,7 @@ import okhttp3.Response;
 
 public class SubirPDFActivity extends AppCompatActivity {
 
-    private static final int CHUNK_SIZE = 1 * 1024 * 1024; // 1 MB por chunk (evita límites del proxy)
+    private static final int CHUNK_SIZE = 2 * 1024 * 1024; // 2 MB por chunk
     private static final int MAX_REINTENTOS = 3;
 
     private final OkHttpClient chunkClient = new OkHttpClient.Builder()
@@ -247,7 +247,7 @@ public class SubirPDFActivity extends AppCompatActivity {
                         .build();
 
                 Request request = new Request.Builder()
-                        .url(Config.BASE_URL + "/upload-chunk")
+                        .url(Config.BASE_URL + "/pdf-parte")
                         .header("Authorization", "Bearer " + ApiClient.getToken())
                         .post(body)
                         .build();
@@ -283,7 +283,7 @@ public class SubirPDFActivity extends AppCompatActivity {
                         bodyJson.toString(),
                         okhttp3.MediaType.get("application/json; charset=utf-8"));
                 okhttp3.Request req = new okhttp3.Request.Builder()
-                        .url(Config.BASE_URL + "/upload-finalize")
+                        .url(Config.BASE_URL + "/pdf-completar")
                         .header("Authorization", "Bearer " + ApiClient.getToken())
                         .post(rb)
                         .build();
