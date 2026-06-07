@@ -253,7 +253,9 @@ public class SubirPDFActivity extends AppCompatActivity {
                         .build();
 
                 try (Response response = chunkClient.newCall(request).execute()) {
-                    if (response.isSuccessful()) return true;
+                    // Consumir el body siempre para que la conexión quede limpia
+                    String respBody = response.body() != null ? response.body().string() : "";
+                    if (response.isSuccessful() && !respBody.startsWith("<")) return true;
                 }
             } catch (IOException e) {
                 if (intento == MAX_REINTENTOS) return false;
