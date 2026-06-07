@@ -56,21 +56,12 @@
                 android:layout_marginBottom="12dp"
                 android:background="#fff"
                 android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Asignar cartones a:"
-                    android:textSize="13sp"
-                    android:textColor="@color/gray"
-                    android:layout_marginBottom="6dp" />
-
-                <Spinner
-                    android:id="@+id/spUsuario"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Asignar cartones a:" android:textSize="13sp"
+                    android:textColor="@color/gray" android:layout_marginBottom="6dp" />
+                <Spinner android:id="@+id/spUsuario"
+                    android:layout_width="match_parent" android:layout_height="48dp"
                     android:background="@android:drawable/btn_dropdown" />
-
             </LinearLayout>
 
             <!-- Botón subir -->
@@ -85,21 +76,61 @@
             </LinearLayout>
 
             <!-- Progreso -->
-            <LinearLayout android:id="@+id/progressCard"
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/progressCard"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:visibility="gone" android:orientation="vertical"
-                android:background="@color/bg_purple" android:padding="16dp"
-                android:gravity="center" android:layout_marginBottom="12dp">
-                <ProgressBar android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:indeterminateTint="@color/purple" />
-                <TextView android:id="@+id/tvProgreso"
-                    android:layout_width="wrap_content" android:layout_height="wrap_content"
-                    android:text="Subiendo archivo..."
-                    android:textColor="@color/purple" android:textSize="13sp"
-                    android:gravity="center" android:layout_marginTop="8dp" />
-            </LinearLayout>
+                android:visibility="gone" android:layout_marginBottom="12dp"
+                app:cardCornerRadius="20dp" app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/bg_purple">
 
-            <!-- Resultado -->
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="20dp" android:gravity="center">
+
+                    <ProgressBar android:id="@+id/progressBar"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:indeterminateTint="@color/purple" />
+
+                    <!-- Fase: subiendo / procesando -->
+                    <TextView android:id="@+id/tvProgreso"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="Subiendo archivo..."
+                        android:textColor="@color/purple" android:textSize="14sp"
+                        android:textStyle="bold" android:gravity="center"
+                        android:layout_marginTop="10dp" />
+
+                    <!-- Tiempo restante -->
+                    <TextView android:id="@+id/tvTiempoRestante"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="" android:textColor="@color/gray"
+                        android:textSize="12sp" android:gravity="center"
+                        android:layout_marginTop="4dp" android:visibility="gone" />
+
+                    <!-- Cartones en tiempo real (durante procesamiento) -->
+                    <TextView android:id="@+id/tvCartonesProcesando"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="0 cartones creados"
+                        android:textColor="@color/green" android:textSize="18sp"
+                        android:textStyle="bold" android:gravity="center"
+                        android:layout_marginTop="12dp" android:visibility="gone" />
+
+                    <TextView android:id="@+id/tvDeTotales"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="de 0 páginas"
+                        android:textColor="@color/gray" android:textSize="12sp"
+                        android:gravity="center" android:layout_marginTop="2dp"
+                        android:visibility="gone" />
+
+                    <!-- Botón Ver Cartones durante procesamiento -->
+                    <Button android:id="@+id/btnVerCartonesEnVivo"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="👁 Ver cartones →"
+                        android:backgroundTint="@color/purple" android:textColor="#fff"
+                        android:layout_marginTop="16dp" android:visibility="gone" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Resultado final -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/resultCard"
                 android:layout_width="match_parent" android:layout_height="wrap_content"

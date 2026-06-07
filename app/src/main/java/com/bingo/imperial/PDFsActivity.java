@@ -1,11 +1,14 @@
 package com.bingo.imperial;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
 import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -30,6 +33,8 @@ public class PDFsActivity extends AppCompatActivity {
     private PDFAdapter adapter;
     private final List<JSONObject> pdfs = new ArrayList<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
+    private Runnable autoRefreshRunnable;
+    private boolean hayProcesando = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,27 +61,46 @@ public class PDFsActivity extends AppCompatActivity {
     private void cargar() {
         swipeRefresh.setRefreshing(true);
         ApiClient.get("/pdfs", new ApiClient.Callback() {
-            @Override
-            public void onSuccess(String body) {
+            @Override public void onSuccess(String body) {
                 handler.post(() -> {
                     try {
                         JSONArray arr = new JSONArray(body);
                         pdfs.clear();
-                        for (int i = 0; i < arr.length(); i++)
-                            pdfs.add(arr.getJSONObject(i));
+                        hayProcesando = false;
+                        for (int i = 0; i < arr.length(); i++) {
+                            JSONObject pdf = arr.getJSONObject(i);
+                            pdfs.add(pdf);
+                            String estado = pdf.optString("estado", "");
+                            if (estado.equals("procesando")) hayProcesando = true;
+                        }
                         adapter.notifyDataSetChanged();
+                        gestionarAutoRefresh();
                     } catch (Exception ignored) {}
                     swipeRefresh.setRefreshing(false);
                 });
             }
-            @Override
-            public void onError(String error) {
+            @Override public void onError(String error) {
                 handler.post(() -> {
                     Toast.makeText(PDFsActivity.this, "Error al cargar PDFs", Toast.LENGTH_SHORT).show();
                     swipeRefresh.setRefreshing(false);
                 });
             }
         });
+    }
+
+    // Auto-refresca cada 2s si hay algún PDF procesando
+    private void gestionarAutoRefresh() {
+        if (autoRefreshRunnable != null) handler.removeCallbacks(autoRefreshRunnable);
+        if (!hayProcesando) return;
+        autoRefreshRunnable = new Runnable() {
+            @Override public void run() {
+                if (!isFinishing() && hayProcesando) {
+                    cargar();
+                    handler.postDelayed(this, 2000);
+                }
+            }
+        };
+        handler.postDelayed(autoRefreshRunnable, 2000);
     }
 
     private void confirmarEliminar(JSONObject pdf) {
@@ -86,7 +110,7 @@ public class PDFsActivity extends AppCompatActivity {
             int id = pdf.getInt("id");
             new AlertDialog.Builder(this)
                     .setTitle("Eliminar PDF")
-                    .setMessage("¿Eliminar \"" + nombre + "\"?\n\nEsto eliminará también los " + total + " cartones asociados.\nEsta acción no se puede deshacer.")
+                    .setMessage("¿Eliminar \"" + nombre + "\"?\n\nEsto eliminará también los " + total + " cartones asociados.")
                     .setPositiveButton("Eliminar todo", (d, w) -> eliminarPDF(id))
                     .setNegativeButton("Cancelar", null)
                     .show();
@@ -95,22 +119,21 @@ public class PDFsActivity extends AppCompatActivity {
 
     private void eliminarPDF(int pdfId) {
         ApiClient.delete("/pdfs/" + pdfId, new ApiClient.Callback() {
-            @Override
-            public void onSuccess(String body) {
-                handler.post(() -> {
-                    Toast.makeText(PDFsActivity.this, "PDF y cartones eliminados", Toast.LENGTH_SHORT).show();
-                    cargar();
-                });
+            @Override public void onSuccess(String body) {
+                handler.post(() -> { Toast.makeText(PDFsActivity.this, "PDF y cartones eliminados", Toast.LENGTH_SHORT).show(); cargar(); });
             }
-            @Override
-            public void onError(String error) {
+            @Override public void onError(String error) {
                 handler.post(() -> Toast.makeText(PDFsActivity.this, "Error al eliminar", Toast.LENGTH_SHORT).show());
             }
         });
     }
 
-    @Override
-    public boolean onSupportNavigateUp() { finish(); return true; }
+    @Override protected void onDestroy() {
+        super.onDestroy();
+        if (autoRefreshRunnable != null) handler.removeCallbacks(autoRefreshRunnable);
+    }
+
+    @Override public boolean onSupportNavigateUp() { finish(); return true; }
 
 
     // ── Adapter ──────────────────────────────────────────────────────────────
@@ -138,13 +161,53 @@ public class PDFsActivity extends AppCompatActivity {
             JSONObject p = items.get(pos);
             try {
                 h.tvNombre.setText(p.getString("nombre_archivo"));
-                int totalCartones = p.optInt("total_cartones", p.optInt("paginas_ok", 0));
-                h.tvCartones.setText(totalCartones + " cartones");
-                h.tvEstado.setText(p.optString("estado", ""));
+
+                int cartonesCreados = p.optInt("cartones_creados", p.optInt("total_cartones", p.optInt("paginas_ok", 0)));
+                int totalPaginas = p.optInt("total_paginas", 0);
+                String estado = p.optString("estado", "");
+
+                // Cartones: mostrar X/total si está procesando
+                if (estado.equals("procesando") && totalPaginas > 0) {
+                    h.tvCartones.setText(cartonesCreados + " / " + totalPaginas + " cartones");
+                } else {
+                    h.tvCartones.setText(cartonesCreados + " cartones");
+                }
+
+                // Estado con color y parpadeo
+                h.tvEstado.clearAnimation();
+                if (estado.equals("procesando")) {
+                    h.tvEstado.setText("● Procesando");
+                    h.tvEstado.setTextColor(0xFF16A34A); // verde
+                    AlphaAnimation blink = new AlphaAnimation(1.0f, 0.2f);
+                    blink.setDuration(700);
+                    blink.setRepeatMode(Animation.REVERSE);
+                    blink.setRepeatCount(Animation.INFINITE);
+                    h.tvEstado.startAnimation(blink);
+                } else if (estado.equals("completado")) {
+                    h.tvEstado.setText("✓ Completado");
+                    h.tvEstado.setTextColor(0xFF6C63FF); // purple
+                } else if (estado.equals("completado_con_errores")) {
+                    h.tvEstado.setText("⚠ Con errores");
+                    h.tvEstado.setTextColor(0xFFD97706); // naranja
+                } else if (estado.equals("error")) {
+                    h.tvEstado.setText("✗ Error");
+                    h.tvEstado.setTextColor(0xFFDC2626); // rojo
+                } else {
+                    h.tvEstado.setText(estado);
+                    h.tvEstado.setTextColor(0xFF6B7280); // gris
+                }
 
                 String fecha = p.optString("fecha_procesado", "");
                 if (fecha.length() > 10) fecha = fecha.substring(0, 10);
                 h.tvFecha.setText(fecha);
+
+                // Clic en la tarjeta va a cartones filtrados por PDF
+                h.itemView.setOnClickListener(v -> {
+                    Intent intent = new Intent(v.getContext(), CartonesActivity.class);
+                    intent.putExtra("pdf_id", p.optInt("id", -1));
+                    intent.putExtra("pdf_nombre", p.optString("nombre_archivo", ""));
+                    v.getContext().startActivity(intent);
+                });
 
                 h.btnEliminar.setOnClickListener(v -> onDelete.onDelete(p));
             } catch (Exception ignored) {}
