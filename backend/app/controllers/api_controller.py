@@ -309,8 +309,9 @@ def _procesar_pdf_async(app, pdf_id, vendedor_id=None):
 
 def _regenerar_imagenes_async(app):
     """
-    Hilo de fondo: superpone el número del cartón en la imagen existente
-    de cada cartón (óvalo dorado, esquina superior derecha).
+    Hilo de fondo: regenera cada imagen de cartón re-procesando la página
+    original del PDF para producir el formato portrait con grilla BINGO.
+    Si el PDF ya no existe, superpone el número sobre la imagen actual.
     """
     with app.app_context():
         from ..services.pdf_processor import PDFProcessor
@@ -336,10 +337,27 @@ def _regenerar_imagenes_async(app):
                     err_count += 1
                     print(f'[BINGO] regenerar SKIP {carton.numero}: imagen no encontrada', flush=True)
                     continue
-                # Superponer número en la imagen existente del cartón
-                processor.superponer_numero_en_archivo(carton.ruta_imagen, carton.numero or '')
+
+                # Intentar regenerar desde el PDF original
+                pdf_path = None
+                if carton.pdf_id:
+                    pdf_rec = PDFProcesado.query.get(carton.pdf_id)
+                    if pdf_rec and pdf_rec.ruta_archivo and os.path.isfile(pdf_rec.ruta_archivo):
+                        pdf_path = pdf_rec.ruta_archivo
+
+                if pdf_path and carton.pagina_origen:
+                    processor.regenerar_desde_pdf(
+                        pdf_path,
+                        carton.pagina_origen,
+                        carton.ruta_imagen,
+                        carton.numero or '',
+                    )
+                else:
+                    # PDF no disponible: solo superponer número sobre imagen existente
+                    processor.superponer_numero_en_archivo(carton.ruta_imagen, carton.numero or '')
+
                 ok_count += 1
-                if ok_count % 50 == 0:
+                if ok_count % 20 == 0:
                     print(f'[BINGO] regenerar progreso: {ok_count}/{total}', flush=True)
             except Exception as e:
                 err_count += 1
