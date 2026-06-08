@@ -1,6 +1,6 @@
 """Servicio de procesamiento de PDF.
-Extrae el número de cada página del PDF y genera una imagen del cartón
-usando el template oficial con el número superpuesto en el círculo vacío.
+Renderiza cada página del PDF como imagen y superpone el número
+del cartón ("Nro # XXXXXX") en el óvalo dorado de la esquina superior derecha.
 """
 import os
 import re
@@ -10,18 +10,12 @@ from typing import Callable, Optional
 import fitz  # PyMuPDF
 from PIL import Image, ImageDraw, ImageFont
 
-# Ruta al template del cartón (imagen "carton .jpeg")
-TEMPLATE_PATH = os.path.join(
-    os.path.dirname(__file__), '..', 'static', 'carton_template.jpeg'
-)
+# Posición relativa del centro del óvalo dorado en la imagen del cartón
+# (calibrado sobre "carton final.jpeg" — esquina superior derecha)
+OVALO_CX   = 0.730   # centro X como fracción del ancho
+OVALO_CY   = 0.155   # centro Y como fracción del alto
 
-# Posición relativa del círculo vacío en el template
-# Círculo superior-derecho de la imagen "carton .jpeg"
-CIRCULO_CX = 0.790   # centro X (79% del ancho)
-CIRCULO_CY = 0.330   # centro Y (33% del alto)
-CIRCULO_R  = 0.140   # radio como fracción del ancho
-
-# Fuentes candidatas en el servidor Linux/Docker
+# Fuentes candidatas en Linux/Docker
 _FONT_CANDIDATOS = [
     '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
     '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
@@ -54,9 +48,7 @@ class PDFProcessor:
         self.formato = formato.lower()
         if self.formato not in ('jpeg', 'png'):
             raise ValueError("formato debe ser 'jpeg' o 'png'")
-        if not os.path.isfile(TEMPLATE_PATH):
-            raise PDFProcessorError(f'Template no encontrado: {TEMPLATE_PATH}')
-        print(f'[BINGO] PDFProcessor: template={TEMPLATE_PATH} fuente={FONT_PATH}', flush=True)
+        print(f'[BINGO] PDFProcessor init: dpi={dpi} fuente={FONT_PATH}', flush=True)
 
     # ── utilidades ────────────────────────────────────────────────────────────
 
@@ -73,75 +65,116 @@ class PDFProcessor:
                 return m.group(1)
         return None
 
-    def generar_imagen_carton(self, numero: str, ruta_destino: str) -> None:
+    def _superponer_numero(self, img: Image.Image, numero: str) -> Image.Image:
         """
-        Genera la imagen del cartón usando el template y escribe el número
-        centrado en el círculo vacío (zona superior derecha).
-        Thread-safe: abre el template de nuevo en cada llamada.
+        Superpone 'Nro #' y el número del cartón en el óvalo dorado
+        de la esquina superior derecha del cartón.
         """
-        img  = Image.open(TEMPLATE_PATH).convert('RGB')
         draw = ImageDraw.Draw(img)
         W, H = img.size
 
-        cx = int(W * CIRCULO_CX)
-        cy = int(H * CIRCULO_CY)
-        r  = int(W * CIRCULO_R)
+        # Centro del óvalo dorado
+        cx = int(W * OVALO_CX)
+        cy = int(H * OVALO_CY)
 
-        # Encontrar el tamaño de fuente más grande que entre en el círculo
-        font      = None
-        font_size = int(r * 1.4)   # empieza grande y reduce
+        # ── Fuente del número (tamaño adaptativo) ──────────────────────────
+        font_num  = None
+        font_label = None
+        max_ancho  = int(W * 0.27)   # el número no puede pasar del 27% del ancho
 
         if FONT_PATH:
-            while font_size >= 12:
+            # Número grande
+            size_num = int(W * 0.10)
+            while size_num >= 10:
                 try:
-                    f    = ImageFont.truetype(FONT_PATH, font_size)
+                    f    = ImageFont.truetype(FONT_PATH, size_num)
                     bbox = draw.textbbox((0, 0), numero, font=f)
-                    tw   = bbox[2] - bbox[0]
-                    th   = bbox[3] - bbox[1]
-                    # cabe si ancho y alto entran en el 85% del diámetro
-                    if tw <= r * 1.70 and th <= r * 1.70:
-                        font = f
+                    if (bbox[2] - bbox[0]) <= max_ancho:
+                        font_num = f
                         break
                 except Exception:
                     pass
-                font_size -= 4
+                size_num -= 2
 
-        if font is None:
-            # fallback: fuente default PIL (pequeña pero siempre disponible)
-            font = ImageFont.load_default()
+            # Label "Nro #" (más pequeño que el número)
+            size_label = max(10, size_num // 2)
+            try:
+                font_label = ImageFont.truetype(FONT_PATH, size_label)
+            except Exception:
+                font_label = None
 
-        # Medir texto final y centrar en el círculo
-        bbox = draw.textbbox((0, 0), numero, font=font)
-        tw   = bbox[2] - bbox[0]
-        th   = bbox[3] - bbox[1]
-        x    = cx - tw // 2
-        y    = cy - th // 2
+        if font_num is None:
+            font_num   = ImageFont.load_default()
+        if font_label is None:
+            font_label = ImageFont.load_default()
 
-        # Sombra oscura para legibilidad
-        sombra = max(2, font_size // 22)
-        draw.text((x + sombra, y + sombra), numero, fill='#1A0A00', font=font)
-        # Texto dorado principal
-        draw.text((x, y), numero, fill='#FFD700', font=font)
+        # ── Posición del label "Nro #" ─────────────────────────────────────
+        bbox_label = draw.textbbox((0, 0), "Nro #", font=font_label)
+        lw = bbox_label[2] - bbox_label[0]
+        lh = bbox_label[3] - bbox_label[1]
+        # el label queda centrado, encima del número
+        lx = cx - lw // 2
+        ly = cy - lh - int(H * 0.045)
 
-        os.makedirs(os.path.dirname(ruta_destino), exist_ok=True)
-        img.save(ruta_destino, 'JPEG', quality=88)
+        # ── Posición del número ────────────────────────────────────────────
+        bbox_num = draw.textbbox((0, 0), numero, font=font_num)
+        nw = bbox_num[2] - bbox_num[0]
+        nh = bbox_num[3] - bbox_num[1]
+        nx = cx - nw // 2
+        ny = cy - nh // 2 + int(H * 0.010)
+
+        # ── Dibujar "Nro #" en gris oscuro ────────────────────────────────
+        draw.text((lx + 1, ly + 1), "Nro #", fill='#888888', font=font_label)
+        draw.text((lx,     ly    ), "Nro #", fill='#444444', font=font_label)
+
+        # ── Dibujar número en negro con sombra ────────────────────────────
+        sombra = max(1, size_num // 20) if FONT_PATH else 1
+        draw.text((nx + sombra, ny + sombra), numero, fill='#333333', font=font_num)
+        draw.text((nx,          ny          ), numero, fill='#111111', font=font_num)
+
+        return img
+
+    def superponer_numero_en_archivo(self, ruta_imagen: str, numero: str) -> None:
+        """
+        Carga una imagen existente y superpone el número del cartón.
+        Usado para regenerar cartones ya creados.
+        """
+        img = Image.open(ruta_imagen).convert('RGB')
+        img = self._superponer_numero(img, numero)
+        img.save(ruta_imagen, 'JPEG', quality=88)
 
     # ── procesamiento de página ───────────────────────────────────────────────
 
     def _procesar_pagina(self, pdf_path: str, indice: int,
                          carpeta_salida: str, ext: str) -> dict:
-        """Extrae número de la página y genera imagen con el template."""
+        """
+        Renderiza la página del PDF y superpone el número del cartón
+        en el óvalo dorado de la esquina superior derecha.
+        """
         try:
+            zoom   = self.dpi / 72.0
+            matriz = fitz.Matrix(zoom, zoom)
+
             doc = fitz.open(pdf_path)
             try:
-                texto = doc.load_page(indice).get_text()
+                page   = doc.load_page(indice)
+                texto  = page.get_text()
+                pix    = page.get_pixmap(matrix=matriz, alpha=False)
             finally:
                 doc.close()
 
+            # Número del cartón
             numero = self._extraer_numero_de_texto(texto)
             if not numero:
                 numero = f'sin_numero_pagina_{indice + 1}'
 
+            # Convertir pixmap a PIL Image
+            img = Image.frombytes('RGB', [pix.width, pix.height], pix.samples)
+
+            # Superponer "Nro # XXXXXX" en el óvalo dorado
+            img = self._superponer_numero(img, numero)
+
+            # Guardar
             ruta_destino = os.path.join(carpeta_salida, f'{numero}.{ext}')
             if os.path.exists(ruta_destino):
                 contador = 2
@@ -152,7 +185,8 @@ class PDFProcessor:
                         break
                     contador += 1
 
-            self.generar_imagen_carton(numero, ruta_destino)
+            os.makedirs(carpeta_salida, exist_ok=True)
+            img.save(ruta_destino, 'JPEG', quality=88)
 
             return {
                 'ok':    {'indice': indice, 'numero': numero,

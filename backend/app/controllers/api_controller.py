@@ -308,7 +308,10 @@ def _procesar_pdf_async(app, pdf_id, vendedor_id=None):
 # ── Admin: regenerar imágenes con template ───────────────────────────────────
 
 def _regenerar_imagenes_async(app):
-    """Hilo de fondo: regenera imágenes de todos los cartones con el template."""
+    """
+    Hilo de fondo: superpone el número del cartón en la imagen existente
+    de cada cartón (óvalo dorado, esquina superior derecha).
+    """
     with app.app_context():
         from ..services.pdf_processor import PDFProcessor
         try:
@@ -317,35 +320,31 @@ def _regenerar_imagenes_async(app):
                 formato=app.config['FORMATO_IMAGEN'],
             )
         except Exception as e:
-            print(f'[BINGO] regenerar ERROR cargando template: {e}', flush=True)
+            print(f'[BINGO] regenerar ERROR init: {e}', flush=True)
             return
 
         cartones  = Carton.query.all()
         total     = len(cartones)
         ok_count  = 0
         err_count = 0
-        ext = app.config.get('FORMATO_IMAGEN', 'jpeg')
-        ext = 'jpg' if ext == 'jpeg' else ext
 
         print(f'[BINGO] regenerar_imagenes: iniciando {total} cartones', flush=True)
 
         for carton in cartones:
             try:
-                numero  = carton.numero or 'sin_numero'
-                carpeta = os.path.dirname(carton.ruta_imagen) if carton.ruta_imagen else \
-                          os.path.join(app.config['IMAGENES_FOLDER'], f'pdf_{carton.pdf_id}')
-                nueva_ruta = os.path.join(carpeta, f'{numero}.{ext}')
-                processor.generar_imagen_carton(numero, nueva_ruta)
-                carton.ruta_imagen = nueva_ruta
+                if not carton.ruta_imagen or not os.path.isfile(carton.ruta_imagen):
+                    err_count += 1
+                    print(f'[BINGO] regenerar SKIP {carton.numero}: imagen no encontrada', flush=True)
+                    continue
+                # Superponer número en la imagen existente del cartón
+                processor.superponer_numero_en_archivo(carton.ruta_imagen, carton.numero or '')
                 ok_count += 1
                 if ok_count % 50 == 0:
-                    db.session.commit()
                     print(f'[BINGO] regenerar progreso: {ok_count}/{total}', flush=True)
             except Exception as e:
                 err_count += 1
                 print(f'[BINGO] regenerar ERROR carton {carton.numero}: {e}', flush=True)
 
-        db.session.commit()
         print(f'[BINGO] regenerar_imagenes LISTO: {ok_count} OK, {err_count} errores', flush=True)
 
 
