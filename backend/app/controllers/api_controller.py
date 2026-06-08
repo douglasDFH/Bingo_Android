@@ -372,49 +372,11 @@ def regenerar_imagenes():
 
 @api_bp.route('/admin/migrar-numeros', methods=['POST'])
 def migrar_numeros():
-    """Convierte todos los números de cartones existentes a formato 5 dígitos."""
+    """Endpoint de migración (actualmente sin operación activa)."""
     _, rol = _usuario_actual()
     if rol != User.ROL_ADMIN:
         return jsonify({'error': 'Solo admin'}), 403
-
-    cartones = Carton.query.all()
-    actualizados = 0
-    sin_cambio = 0
-    colisiones = 0
-
-    for carton in cartones:
-        numero_actual = carton.numero or ''
-        try:
-            n = abs(int(numero_actual)) % 100000
-            nuevo_numero = str(n).zfill(5)
-        except (ValueError, TypeError):
-            sin_cambio += 1
-            continue
-
-        if nuevo_numero == numero_actual:
-            sin_cambio += 1
-            continue
-
-        # Verificar colisión con otro cartón
-        existente = Carton.query.filter(
-            Carton.numero == nuevo_numero,
-            Carton.id != carton.id
-        ).first()
-        if existente:
-            colisiones += 1
-            continue
-
-        carton.numero = nuevo_numero
-        actualizados += 1
-
-    db.session.commit()
-    return jsonify({
-        'ok': True,
-        'actualizados': actualizados,
-        'sin_cambio': sin_cambio,
-        'colisiones': colisiones,
-        'total': len(cartones),
-    })
+    return jsonify({'ok': True, 'mensaje': 'Sin cambios pendientes.'})
 
 
 # ── Chunked upload ────────────────────────────────────────────────────────────

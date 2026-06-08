@@ -140,10 +140,8 @@ class PDFProcessor:
                 doc.close()
 
             numero = self._extraer_numero_de_texto(texto)
-            if numero:
-                numero = self.formatear_numero(numero)
-            else:
-                numero = f'sin_numero_{str(indice + 1).zfill(5)}'
+            if not numero:
+                numero = f'sin_numero_pagina_{indice + 1}'
 
             ruta_destino = os.path.join(carpeta_salida, f'{numero}.{ext}')
             # Evitar sobreescribir si ya existe un número igual
