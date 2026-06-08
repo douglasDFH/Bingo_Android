@@ -10,10 +10,10 @@ from typing import Callable, Optional
 import fitz  # PyMuPDF
 from PIL import Image, ImageDraw, ImageFont
 
-# Posición relativa del centro del óvalo dorado en la imagen del cartón
-# (calibrado sobre "carton final.jpeg" — esquina superior derecha)
-OVALO_CX   = 0.730   # centro X como fracción del ancho
-OVALO_CY   = 0.155   # centro Y como fracción del alto
+# Posición relativa del centro del círculo dorado en la imagen del cartón
+# Calibrado sobre "carton final.jpeg": círculo grande en esquina superior derecha
+OVALO_CX = 0.775   # centro X como fracción del ancho
+OVALO_CY = 0.128   # centro Y como fracción del alto (relativo al cartón completo)
 
 # Fuentes candidatas en Linux/Docker
 _FONT_CANDIDATOS = [
@@ -67,24 +67,26 @@ class PDFProcessor:
 
     def _superponer_numero(self, img: Image.Image, numero: str) -> Image.Image:
         """
-        Superpone 'Nro #' y el número del cartón en el óvalo dorado
-        de la esquina superior derecha del cartón.
+        Superpone 'Nro #' y el número del cartón en el círculo dorado
+        de la esquina superior derecha (calibrado sobre carton final.jpeg).
         """
         draw = ImageDraw.Draw(img)
         W, H = img.size
 
-        # Centro del óvalo dorado
+        # Centro del círculo dorado
         cx = int(W * OVALO_CX)
         cy = int(H * OVALO_CY)
 
-        # ── Fuente del número (tamaño adaptativo) ──────────────────────────
-        font_num  = None
+        # El círculo ocupa ~42% del ancho; dejamos margen para que no toque el borde
+        max_ancho = int(W * 0.32)
+
+        font_num   = None
         font_label = None
-        max_ancho  = int(W * 0.27)   # el número no puede pasar del 27% del ancho
+        size_num   = 10
 
         if FONT_PATH:
-            # Número grande
-            size_num = int(W * 0.10)
+            # Número grande: tamaño adaptativo para que quepa en el círculo
+            size_num = int(W * 0.11)
             while size_num >= 10:
                 try:
                     f    = ImageFont.truetype(FONT_PATH, size_num)
@@ -94,43 +96,48 @@ class PDFProcessor:
                         break
                 except Exception:
                     pass
-                size_num -= 2
+                size_num -= 1
 
-            # Label "Nro #" (más pequeño que el número)
-            size_label = max(10, size_num // 2)
+            # "Nro #" es ~1/3 del tamaño del número (igual que en la referencia)
+            size_label = max(8, size_num // 3)
             try:
                 font_label = ImageFont.truetype(FONT_PATH, size_label)
             except Exception:
                 font_label = None
 
         if font_num is None:
-            font_num   = ImageFont.load_default()
+            font_num = ImageFont.load_default()
         if font_label is None:
             font_label = ImageFont.load_default()
 
-        # ── Posición del label "Nro #" ─────────────────────────────────────
+        # Medir ambos textos
         bbox_label = draw.textbbox((0, 0), "Nro #", font=font_label)
         lw = bbox_label[2] - bbox_label[0]
         lh = bbox_label[3] - bbox_label[1]
-        # el label queda centrado, encima del número
-        lx = cx - lw // 2
-        ly = cy - lh - int(H * 0.045)
 
-        # ── Posición del número ────────────────────────────────────────────
         bbox_num = draw.textbbox((0, 0), numero, font=font_num)
         nw = bbox_num[2] - bbox_num[0]
         nh = bbox_num[3] - bbox_num[1]
+
+        # Apilar "Nro #" encima del número, bloque centrado verticalmente en cy
+        gap       = max(2, int(H * 0.006))
+        total_h   = lh + gap + nh
+        block_top = cy - total_h // 2
+
+        lx = cx - lw // 2
+        ly = block_top
+
         nx = cx - nw // 2
-        ny = cy - nh // 2 + int(H * 0.010)
+        ny = block_top + lh + gap
 
-        # ── Dibujar "Nro #" en gris oscuro ────────────────────────────────
-        draw.text((lx + 1, ly + 1), "Nro #", fill='#888888', font=font_label)
-        draw.text((lx,     ly    ), "Nro #", fill='#444444', font=font_label)
+        # "Nro #" en gris (como en la referencia)
+        draw.text((lx + 1, ly + 1), "Nro #", fill='#aaaaaa', font=font_label)
+        draw.text((lx,     ly    ), "Nro #", fill='#666666', font=font_label)
 
-        # ── Dibujar número en negro con sombra ────────────────────────────
-        sombra = max(1, size_num // 20) if FONT_PATH else 1
+        # Número en negro con sombra sutil
+        sombra = max(1, size_num // 25) if FONT_PATH else 1
         draw.text((nx + sombra, ny + sombra), numero, fill='#333333', font=font_num)
-        draw.text((nx,          ny          ), numero, fill='#111111', font=font_num)
+        draw.text((nx,          ny          ), numero, fill='#0d0d0d', font=font_num)
 
         return img
 

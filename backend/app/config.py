@@ -9,19 +9,22 @@ class Config:
     JWT_SECRET_KEY = os.environ.get('SECRET_KEY', 'cambia-esto-en-produccion')
     JWT_ACCESS_TOKEN_EXPIRES = 60 * 60 * 24 * 30  # 30 días
 
-    # SQLite local en la carpeta instance/
     SQLALCHEMY_DATABASE_URI = (
         'sqlite:///' + os.path.join(BASE_DIR, 'instance', 'bingo.db')
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # SQLite: esperar hasta 30s si está bloqueada por otro hilo/proceso
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'connect_args': {'timeout': 30},
+    }
 
     # Carpetas
-    UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+    UPLOAD_FOLDER   = os.path.join(BASE_DIR, 'uploads')
     IMAGENES_FOLDER = os.path.join(BASE_DIR, 'imagenes_generadas')
 
-    # Límite de subida 200 MB (ajustable)
+    # Límite de subida 200 MB
     MAX_CONTENT_LENGTH = 200 * 1024 * 1024
 
     # Parámetros de procesamiento
-    DPI_IMAGENES = 72
-    FORMATO_IMAGEN = 'jpeg'  # 'jpeg' o 'png'
+    DPI_IMAGENES   = 150   # 150 dpi: buena calidad sin archivos enormes
+    FORMATO_IMAGEN = 'jpeg'
