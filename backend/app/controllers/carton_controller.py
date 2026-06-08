@@ -55,11 +55,14 @@ def detalle(carton_id):
 
 @carton_bp.route('/<int:carton_id>/imagen')
 def imagen(carton_id):
-    """Sirve la imagen del cartón desde disco."""
+    """Sirve la imagen del cartón desde disco (sin caché)."""
     carton = Carton.query.get_or_404(carton_id)
     if not carton.ruta_imagen or not os.path.isfile(carton.ruta_imagen):
         abort(404)
-    return send_file(carton.ruta_imagen)
+    response = send_file(carton.ruta_imagen)
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    return response
 
 
 @carton_bp.route('/<int:carton_id>/vender', methods=['POST'])

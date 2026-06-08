@@ -106,6 +106,8 @@ public class CartonDetalleActivity extends AppCompatActivity {
 
         Glide.with(this)
                 .load(Config.MEDIA_URL + "/cartones/" + cartonId + "/imagen")
+                .skipMemoryCache(true)
+                .diskCacheStrategy(com.bumptech.glide.load.engine.DiskCacheStrategy.NONE)
                 .into(imageView);
 
         tvNumero.setText("Cartón #" + numero);
