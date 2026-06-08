@@ -1,6 +1,6 @@
 """Servicio de procesamiento de PDF.
-Extrae números del cartón desde el PDF y los compone sobre la plantilla
-carton_final_ref.jpeg para generar imágenes portrait con header + grilla BINGO.
+Genera cartones portrait: logo_superior.jpeg como header +
+grilla BINGO dibujada con los números extraídos del PDF.
 """
 import os
 import re
@@ -11,29 +11,21 @@ from typing import Callable, Optional
 import fitz  # PyMuPDF
 from PIL import Image, ImageDraw, ImageFont
 
-# ── constantes de posición ────────────────────────────────────────────────────
+# ── rutas ─────────────────────────────────────────────────────────────────────
 
-# Posición del óvalo dorado calibrada sobre carton_final_ref.jpeg
-OVALO_CX = 0.775   # centro X como fracción del ancho
-OVALO_CY = 0.128   # centro Y como fracción del alto
+_STATIC_DIR = os.path.join(os.path.dirname(__file__), '..', 'static')
+_LOGO_PATH  = os.path.join(_STATIC_DIR, 'logo_superior.jpeg')
 
-# Área de borrado dentro del óvalo (para tapar el número anterior de la plantilla)
-OVALO_CLEAR_HW = 0.210  # semi-ancho como fracción del ancho de la imagen
-OVALO_CLEAR_HH = 0.072  # semi-alto  como fracción del alto  de la imagen
-OVALO_BG_COLOR = '#D4A84B'  # color interior aproximado del óvalo dorado
+# ── posición del círculo dorado dentro del logo (fracciones del logo) ─────────
+# El círculo grande está en el lado derecho de logo_superior.jpeg
+CIRCULO_X = 0.805   # centro X del círculo como fracción del ancho del logo
+CIRCULO_Y = 0.430   # centro Y del círculo como fracción del alto del logo
 
-# Proporciones de la grilla (fracción del alto total de la plantilla)
-GRID_TOP      = 0.280   # donde empieza la grilla (bajo el header)
-BINGO_ROW_H   = 0.119   # altura de la fila B/I/N/G/O
-NUM_ROW_H     = 0.108   # altura de cada fila de números (×5)
-# Las 5 filas de números van desde GRID_TOP+BINGO_ROW_H hasta ~0.94 del alto
+# ── parámetros de la grilla ───────────────────────────────────────────────────
+# Ancho fijo del cartón en píxeles (el alto se calcula según el logo)
+CARD_WIDTH = 620
 
-# Plantilla portrait con header + estructura de grilla vacía
-_TEMPLATE_PATH = os.path.join(
-    os.path.dirname(__file__), '..', 'static', 'carton_final_ref.jpeg'
-)
-
-# Fuentes candidatas en Linux/Docker
+# ── fuentes candidatas (Linux / Docker) ───────────────────────────────────────
 _FONT_CANDIDATOS = [
     '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
     '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
@@ -52,21 +44,21 @@ def _encontrar_fuente() -> Optional[str]:
 
 FONT_PATH = _encontrar_fuente()
 
-# Cache thread-safe de la plantilla base
-_template_cache: Optional[Image.Image] = None
-_template_lock = threading.Lock()
+# ── cache thread-safe del logo ────────────────────────────────────────────────
+_logo_cache: Optional[Image.Image] = None
+_logo_lock  = threading.Lock()
 
 
-def _cargar_plantilla() -> Optional[Image.Image]:
-    global _template_cache
-    with _template_lock:
-        if _template_cache is None:
-            if os.path.isfile(_TEMPLATE_PATH):
-                _template_cache = Image.open(_TEMPLATE_PATH).convert('RGB')
-                print(f'[BINGO] Plantilla cargada: {_TEMPLATE_PATH} {_template_cache.size}', flush=True)
+def _cargar_logo() -> Optional[Image.Image]:
+    global _logo_cache
+    with _logo_lock:
+        if _logo_cache is None:
+            if os.path.isfile(_LOGO_PATH):
+                _logo_cache = Image.open(_LOGO_PATH).convert('RGB')
+                print(f'[BINGO] Logo cargado: {_LOGO_PATH} {_logo_cache.size}', flush=True)
             else:
-                print(f'[BINGO] AVISO: plantilla no encontrada: {_TEMPLATE_PATH}', flush=True)
-    return _template_cache
+                print(f'[BINGO] AVISO: logo no encontrado en {_LOGO_PATH}', flush=True)
+    return _logo_cache
 
 
 # ── clases ────────────────────────────────────────────────────────────────────
@@ -86,14 +78,22 @@ class PDFProcessor:
             raise ValueError("formato debe ser 'jpeg' o 'png'")
         print(f'[BINGO] PDFProcessor init: dpi={dpi} fuente={FONT_PATH}', flush=True)
 
-    # ── extracción de texto ───────────────────────────────────────────────────
+    # ── utilidades de fuente ──────────────────────────────────────────────────
+
+    def _fuente(self, size: int) -> ImageFont.ImageFont:
+        if FONT_PATH:
+            try:
+                return ImageFont.truetype(FONT_PATH, size)
+            except Exception:
+                pass
+        return ImageFont.load_default()
+
+    # ── extracción de texto del PDF ───────────────────────────────────────────
 
     def _extraer_numero_carton(self, texto: str) -> Optional[str]:
-        """Extrae el número de cartón (número grande, > 75) del texto del PDF."""
         lines = [l.strip() for l in texto.split('\n') if l.strip()]
         if not lines:
             return None
-        # Busca el último número de 3-8 dígitos
         m = self.REGEX_NUMERO.match(lines[-1])
         if m:
             return m.group(1)
@@ -106,11 +106,10 @@ class PDFProcessor:
     def _extraer_grid_bingo(self, texto: str) -> dict:
         """
         Extrae los 25 números de la grilla BINGO del texto del PDF.
-        Retorna {'B': [5], 'I': [5], 'N': [5 con None en centro], 'G': [5], 'O': [5]}.
+        Retorna {'B':[5], 'I':[5], 'N':[5 con None en centro], 'G':[5], 'O':[5]}.
         """
-        # Todos los números 1-75 en orden de aparición, sin duplicados
         vistos: set = set()
-        nums: list = []
+        nums: list  = []
         for m in re.finditer(r'\b(\d{1,2})\b', texto):
             n = int(m.group(1))
             if 1 <= n <= 75 and n not in vistos:
@@ -123,139 +122,136 @@ class PDFProcessor:
         G      = [n for n in nums if 46 <= n <= 60][:5]
         O      = [n for n in nums if 61 <= n <= 75][:5]
 
-        # Completar con ceros si faltan números
-        while len(B) < 5:      B.append(0)
-        while len(I) < 5:      I.append(0)
+        while len(B)      < 5: B.append(0)
+        while len(I)      < 5: I.append(0)
         while len(N_list) < 4: N_list.append(0)
-        while len(G) < 5:      G.append(0)
-        while len(O) < 5:      O.append(0)
+        while len(G)      < 5: G.append(0)
+        while len(O)      < 5: O.append(0)
 
-        # Columna N: None en posición central (índice 2)
         N = N_list[:2] + [None] + N_list[2:]
-
         return {'B': B, 'I': I, 'N': N, 'G': G, 'O': O}
 
-    # ── dibujo de celdas ─────────────────────────────────────────────────────
+    # ── dibujo de la grilla BINGO ─────────────────────────────────────────────
 
-    def _fuente(self, size: int) -> ImageFont.ImageFont:
-        if FONT_PATH:
-            try:
-                return ImageFont.truetype(FONT_PATH, size)
-            except Exception:
-                pass
-        return ImageFont.load_default()
+    def _dibujar_grilla(self, canvas: Image.Image, grid: dict,
+                        numero: str, y_inicio: int) -> None:
+        """Dibuja la grilla BINGO completa sobre el canvas a partir de y_inicio."""
+        draw = ImageDraw.Draw(canvas)
+        W    = canvas.width
 
-    def _draw_numero_celda(self, draw: ImageDraw.ImageDraw,
-                           cx: int, cy: int, texto: str, row_h: int) -> None:
-        """Dibuja un número grande centrado en la celda."""
-        size = max(14, int(row_h * 0.60))
-        font = self._fuente(size)
-        bbox = draw.textbbox((0, 0), texto, font=font)
-        tw = bbox[2] - bbox[0]
-        th = bbox[3] - bbox[1]
-        draw.text((cx - tw // 2, cy - th // 2), texto, fill='#1a1a1a', font=font)
-
-    def _draw_celda_central(self, draw: ImageDraw.ImageDraw,
-                            cx: int, cy: int, numero: str, row_h: int) -> None:
-        """Celda central N: 'TABLA NO.' arriba y número de cartón abajo."""
-        size_label = max(8, int(row_h * 0.22))
-        size_num   = max(10, int(row_h * 0.28))
-        font_l = self._fuente(size_label)
-        font_n = self._fuente(size_num)
-
-        label = 'TABLA NO.'
-        bbox_l = draw.textbbox((0, 0), label,  font=font_l)
-        bbox_n = draw.textbbox((0, 0), numero, font=font_n)
-        lw = bbox_l[2] - bbox_l[0];  lh = bbox_l[3] - bbox_l[1]
-        nw = bbox_n[2] - bbox_n[0];  nh = bbox_n[3] - bbox_n[1]
-
-        gap     = max(2, int(row_h * 0.06))
-        total_h = lh + gap + nh
-        top     = cy - total_h // 2
-
-        draw.text((cx - lw // 2, top),            label,  fill='#666666', font=font_l)
-        draw.text((cx - nw // 2, top + lh + gap), numero, fill='#333333', font=font_n)
-
-    # ── composición del cartón ────────────────────────────────────────────────
-
-    def _componer_carton(self, grid: dict, numero: str) -> Image.Image:
-        """
-        Carga la plantilla portrait (carton_final_ref.jpeg), borra los números
-        existentes celda por celda y dibuja los nuevos.
-        """
-        plantilla = _cargar_plantilla()
-        if plantilla is None:
-            raise PDFProcessorError('Plantilla carton_final_ref.jpeg no encontrada en static/')
-
-        img  = plantilla.copy()
-        draw = ImageDraw.Draw(img)
-        W, H = img.size
-
-        grid_top    = int(H * GRID_TOP)
-        bingo_row_h = int(H * BINGO_ROW_H)
-        num_row_h   = int(H * NUM_ROW_H)
         col_w       = W // 5
+        cabecera_h  = int(col_w * 0.70)   # fila B/I/N/G/O
+        celda_h     = int(col_w * 0.82)   # filas de números
 
         cols = ['B', 'I', 'N', 'G', 'O']
+        COLOR_LINEA   = '#AAAAAA'
+        COLOR_FONDO   = '#FFFFFF'
+        COLOR_CABEC   = '#F0F0F0'
+        COLOR_LETRA   = '#000000'
+        COLOR_NUMERO  = '#111111'
+        COLOR_CENTRAL = '#555555'
+
+        total_grid_h = cabecera_h + 5 * celda_h
+
+        # Fondo blanco de toda la grilla
+        draw.rectangle([0, y_inicio, W, y_inicio + total_grid_h], fill=COLOR_FONDO)
+
+        # ── fila cabecera B/I/N/G/O ───────────────────────────────────────────
+        font_bingo = self._fuente(int(cabecera_h * 0.68))
+        for ci, letra in enumerate(cols):
+            x0 = ci * col_w
+            x1 = x0 + col_w
+            y0 = y_inicio
+            y1 = y0 + cabecera_h
+            draw.rectangle([x0, y0, x1, y1], fill=COLOR_CABEC)
+            bbox = draw.textbbox((0, 0), letra, font=font_bingo)
+            tw   = bbox[2] - bbox[0]
+            th   = bbox[3] - bbox[1]
+            draw.text(
+                (x0 + (col_w - tw) // 2, y0 + (cabecera_h - th) // 2),
+                letra, fill=COLOR_LETRA, font=font_bingo,
+            )
+
+        # ── celdas de números ─────────────────────────────────────────────────
+        font_num     = self._fuente(int(celda_h * 0.58))
+        font_central = self._fuente(int(celda_h * 0.22))
+        font_ctabla  = self._fuente(int(celda_h * 0.18))
 
         for ci, col in enumerate(cols):
-            numeros_col = grid.get(col, [0] * 5)
+            nums_col = grid.get(col, [0] * 5)
             x0 = ci * col_w
             x1 = x0 + col_w
 
             for ri in range(5):
-                y0 = grid_top + bingo_row_h + ri * num_row_h
-                y1 = y0 + num_row_h
+                y0 = y_inicio + cabecera_h + ri * celda_h
+                y1 = y0 + celda_h
+                cx = x0 + col_w  // 2
+                cy = y0 + celda_h // 2
 
-                # Margen interior para no borrar los bordes de la celda
-                margen_x = max(4, col_w  // 10)
-                margen_y = max(4, num_row_h // 8)
-
-                # Borrar número anterior con rectángulo blanco
-                draw.rectangle(
-                    [x0 + margen_x, y0 + margen_y, x1 - margen_x, y1 - margen_y],
-                    fill='white'
-                )
-
-                cx = (x0 + x1) // 2
-                cy = (y0 + y1) // 2
+                draw.rectangle([x0, y0, x1, y1], fill=COLOR_FONDO)
 
                 if ci == 2 and ri == 2:
                     # Celda central: TABLA NO. + número de cartón
-                    self._draw_celda_central(draw, cx, cy, numero, num_row_h)
+                    label = 'TABLA NO.'
+                    bl = draw.textbbox((0, 0), label,  font=font_ctabla)
+                    bn = draw.textbbox((0, 0), numero, font=font_central)
+                    lw = bl[2] - bl[0]; lh = bl[3] - bl[1]
+                    nw = bn[2] - bn[0]; nh = bn[3] - bn[1]
+                    gap     = max(2, int(celda_h * 0.05))
+                    total_h = lh + gap + nh
+                    top     = cy - total_h // 2
+                    draw.text((cx - lw // 2, top),           label,  fill=COLOR_CENTRAL, font=font_ctabla)
+                    draw.text((cx - nw // 2, top + lh + gap), numero, fill=COLOR_CENTRAL, font=font_central)
                 else:
-                    val = numeros_col[ri] if ri < len(numeros_col) else 0
+                    val = nums_col[ri] if ri < len(nums_col) else 0
                     if val:
-                        self._draw_numero_celda(draw, cx, cy, str(val), num_row_h)
+                        txt  = str(val)
+                        bbox = draw.textbbox((0, 0), txt, font=font_num)
+                        tw   = bbox[2] - bbox[0]
+                        th   = bbox[3] - bbox[1]
+                        draw.text(
+                            (cx - tw // 2, cy - th // 2),
+                            txt, fill=COLOR_NUMERO, font=font_num,
+                        )
 
-        # Superponer "Nro # XXXXXX" en el óvalo dorado
-        img = self._superponer_numero(img, numero)
-        return img
+        # ── líneas de la grilla ───────────────────────────────────────────────
+        grid_bottom = y_inicio + total_grid_h
+        # horizontales
+        for ri in range(7):
+            y = y_inicio + (cabecera_h if ri == 1 else
+                            cabecera_h + (ri - 1) * celda_h if ri > 1 else 0)
+            draw.line([(0, y), (W, y)], fill=COLOR_LINEA, width=2)
+        draw.line([(0, grid_bottom), (W, grid_bottom)], fill=COLOR_LINEA, width=2)
+        # verticales
+        for ci in range(6):
+            x = ci * col_w
+            draw.line([(x, y_inicio), (x, grid_bottom)], fill=COLOR_LINEA, width=2)
 
-    def _superponer_numero(self, img: Image.Image, numero: str) -> Image.Image:
+    # ── superposición del número en el círculo del logo ───────────────────────
+
+    def _superponer_numero(self, canvas: Image.Image, numero: str,
+                           header_h: int) -> Image.Image:
         """
-        Superpone 'Nro #' y el número del cartón en el círculo dorado
-        de la esquina superior derecha (calibrado sobre carton_final_ref.jpeg).
+        Escribe 'Nro #' y el número del cartón dentro del círculo dorado
+        del logo. La posición se calcula relativa al header real.
         """
-        draw = ImageDraw.Draw(img)
-        W, H = img.size
+        draw = ImageDraw.Draw(canvas)
+        W    = canvas.width
 
-        cx = int(W * OVALO_CX)
-        cy = int(H * OVALO_CY)
+        # Centro del círculo en el canvas portrait
+        cx = int(W * CIRCULO_X)
+        cy = int(header_h * CIRCULO_Y)
 
-        # Borrar el número anterior de la plantilla
-        hw = int(W * OVALO_CLEAR_HW)
-        hh = int(H * OVALO_CLEAR_HH)
-        draw.rectangle([cx - hw, cy - hh, cx + hw, cy + hh], fill=OVALO_BG_COLOR)
+        # Ancho máximo disponible dentro del círculo (~38% del ancho del cartón)
+        max_ancho = int(W * 0.28)
 
-        max_ancho = int(W * 0.32)
-
+        # Tamaño adaptativo del número para que quepa en el círculo
         font_num   = None
         font_label = None
         size_num   = 10
 
         if FONT_PATH:
-            size_num = int(W * 0.11)
+            size_num = int(W * 0.10)
             while size_num >= 10:
                 try:
                     f    = ImageFont.truetype(FONT_PATH, size_num)
@@ -273,20 +269,16 @@ class PDFProcessor:
             except Exception:
                 font_label = None
 
-        if font_num is None:
-            font_num = ImageFont.load_default()
-        if font_label is None:
-            font_label = ImageFont.load_default()
+        if font_num   is None: font_num   = ImageFont.load_default()
+        if font_label is None: font_label = ImageFont.load_default()
 
-        bbox_label = draw.textbbox((0, 0), 'Nro #', font=font_label)
-        lw = bbox_label[2] - bbox_label[0]
-        lh = bbox_label[3] - bbox_label[1]
+        # Medir textos
+        bl = draw.textbbox((0, 0), 'Nro #', font=font_label)
+        lw = bl[2] - bl[0];  lh = bl[3] - bl[1]
+        bn = draw.textbbox((0, 0), numero,  font=font_num)
+        nw = bn[2] - bn[0];  nh = bn[3] - bn[1]
 
-        bbox_num = draw.textbbox((0, 0), numero, font=font_num)
-        nw = bbox_num[2] - bbox_num[0]
-        nh = bbox_num[3] - bbox_num[1]
-
-        gap       = max(2, int(H * 0.006))
+        gap       = max(2, int(header_h * 0.008))
         total_h   = lh + gap + nh
         block_top = cy - total_h // 2
 
@@ -295,24 +287,63 @@ class PDFProcessor:
         nx = cx - nw // 2
         ny = block_top + lh + gap
 
-        draw.text((lx + 1, ly + 1), 'Nro #', fill='#aaaaaa', font=font_label)
-        draw.text((lx,     ly    ), 'Nro #', fill='#666666', font=font_label)
+        # "Nro #" en gris oscuro con sombra sutil
+        draw.text((lx + 1, ly + 1), 'Nro #', fill='#888888', font=font_label)
+        draw.text((lx,     ly    ), 'Nro #', fill='#555555', font=font_label)
 
-        sombra = max(1, size_num // 25) if FONT_PATH else 1
-        draw.text((nx + sombra, ny + sombra), numero, fill='#333333', font=font_num)
+        # Número en negro con sombra
+        sombra = max(1, size_num // 20) if FONT_PATH else 1
+        draw.text((nx + sombra, ny + sombra), numero, fill='#444444', font=font_num)
         draw.text((nx,          ny          ), numero, fill='#0d0d0d', font=font_num)
 
-        return img
+        return canvas
 
-    # ── procesamiento de página ───────────────────────────────────────────────
+    # ── composición del cartón completo ──────────────────────────────────────
+
+    def _componer_carton(self, grid: dict, numero: str) -> Image.Image:
+        """
+        Crea la imagen portrait del cartón:
+          1. logo_superior.jpeg como header (escalado a CARD_WIDTH)
+          2. Grilla BINGO dibujada programáticamente
+          3. Número del cartón en el círculo dorado del logo
+        """
+        logo = _cargar_logo()
+        if logo is None:
+            raise PDFProcessorError(
+                'logo_superior.jpeg no encontrado en static/. '
+                'Asegúrate de que el archivo esté en backend/app/static/'
+            )
+
+        # Escalar logo al ancho del cartón manteniendo proporción
+        lw, lh = logo.size
+        scale    = CARD_WIDTH / lw
+        header_h = int(lh * scale)
+        header   = logo.resize((CARD_WIDTH, header_h), Image.LANCZOS)
+
+        # Calcular altura de la grilla
+        col_w      = CARD_WIDTH // 5
+        cabecera_h = int(col_w * 0.70)
+        celda_h    = int(col_w * 0.82)
+        grid_h     = cabecera_h + 5 * celda_h
+
+        # Canvas portrait: logo arriba + grilla abajo
+        total_h = header_h + grid_h
+        canvas  = Image.new('RGB', (CARD_WIDTH, total_h), 'white')
+        canvas.paste(header, (0, 0))
+
+        # Dibujar grilla BINGO
+        self._dibujar_grilla(canvas, grid, numero, header_h)
+
+        # Escribir número en el círculo dorado del logo
+        canvas = self._superponer_numero(canvas, numero, header_h)
+
+        return canvas
+
+    # ── procesamiento de página del PDF ──────────────────────────────────────
 
     def _procesar_pagina(self, pdf_path: str, indice: int,
                          carpeta_salida: str, ext: str,
                          ruta_destino_override: Optional[str] = None) -> dict:
-        """
-        Extrae los datos del PDF y genera la imagen portrait del cartón:
-        header decorativo + grilla BINGO con números reales.
-        """
         try:
             doc = fitz.open(pdf_path)
             try:
@@ -326,14 +357,13 @@ class PDFProcessor:
                 numero = f'sin_numero_pagina_{indice + 1}'
 
             grid = self._extraer_grid_bingo(texto)
+            img  = self._componer_carton(grid, numero)
 
-            # Componer imagen portrait con plantilla + números
-            img = self._componer_carton(grid, numero)
-
-            # Determinar ruta de destino
             if ruta_destino_override:
                 ruta_destino = ruta_destino_override
+                os.makedirs(os.path.dirname(ruta_destino), exist_ok=True)
             else:
+                os.makedirs(carpeta_salida, exist_ok=True)
                 ruta_destino = os.path.join(carpeta_salida, f'{numero}.{ext}')
                 if os.path.exists(ruta_destino):
                     contador = 2
@@ -344,8 +374,6 @@ class PDFProcessor:
                             break
                         contador += 1
 
-            os.makedirs(os.path.dirname(ruta_destino) if ruta_destino_override
-                        else carpeta_salida, exist_ok=True)
             img.save(ruta_destino, 'JPEG', quality=90)
 
             return {
@@ -365,10 +393,7 @@ class PDFProcessor:
 
     def regenerar_desde_pdf(self, pdf_path: str, pagina_origen: int,
                             ruta_imagen: str, numero: str) -> None:
-        """
-        Regenera la imagen de un cartón procesando nuevamente la página del PDF.
-        pagina_origen es 1-based (como está guardado en la BD).
-        """
+        """Regenera la imagen re-procesando la página original del PDF."""
         if not os.path.isfile(pdf_path):
             raise PDFProcessorError(f'PDF no encontrado: {pdf_path}')
         ext = 'jpg' if self.formato == 'jpeg' else 'png'
@@ -381,12 +406,16 @@ class PDFProcessor:
             raise PDFProcessorError(resultado['error']['razon'])
 
     def superponer_numero_en_archivo(self, ruta_imagen: str, numero: str) -> None:
-        """
-        Fallback: superpone el número en una imagen existente (sin PDF).
-        Usado solo cuando el PDF original no está disponible.
-        """
+        """Fallback: reconstruye el cartón desde la plantilla base."""
+        logo = _cargar_logo()
+        if logo is None:
+            return
         img = Image.open(ruta_imagen).convert('RGB')
-        img = self._superponer_numero(img, numero)
+        # Si ya tiene el tamaño del cartón, solo reescribir el número
+        lw, lh = logo.size
+        scale    = CARD_WIDTH / lw
+        header_h = int(lh * scale)
+        img = self._superponer_numero(img, numero, header_h)
         img.save(ruta_imagen, 'JPEG', quality=90)
 
     # ── procesamiento completo del PDF ────────────────────────────────────────
@@ -421,22 +450,16 @@ class PDFProcessor:
                 if resultado['ok']:
                     ok.append(resultado['ok'])
                     if carton_cb:
-                        try:
-                            carton_cb(resultado['ok'])
-                        except Exception:
-                            pass
+                        try:   carton_cb(resultado['ok'])
+                        except Exception: pass
                 else:
                     error.append(resultado['error'])
                     if error_cb:
-                        try:
-                            error_cb(resultado['error'])
-                        except Exception:
-                            pass
+                        try:   error_cb(resultado['error'])
+                        except Exception: pass
                 if progreso_cb:
-                    try:
-                        progreso_cb(len(ok) + len(error), total)
-                    except Exception:
-                        pass
+                    try:   progreso_cb(len(ok) + len(error), total)
+                    except Exception: pass
 
         ok.sort(key=lambda x: x['indice'])
         return {'ok': ok, 'error': error, 'total': total}
