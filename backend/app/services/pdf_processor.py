@@ -21,8 +21,8 @@ CIRCULO_X = 0.805   # centro X del círculo como fracción del ancho del logo
 CIRCULO_Y = 0.430   # centro Y del círculo como fracción del alto del logo
 
 # ── parámetros del cartón ─────────────────────────────────────────────────────
-CARD_WIDTH      = 620
-LOGO_HEADER_H   = 160        # altura fija del banner logo_superior.jpeg en píxeles
+CARD_WIDTH      = 520
+LOGO_HEADER_H   = 210        # altura fija del banner logo_superior.jpeg en píxeles
 RENDER_SCALE    = 150 / 72   # renderiza el PDF a ~150 DPI
 HEADER_FRACTION = 0.20       # fracción del alto de página que ocupa el header del PDF
                               # (usada si la detección automática falla)
