@@ -23,6 +23,7 @@ CIRCULO_Y = 0.430   # centro Y del círculo como fracción del alto del logo
 # ── parámetros del cartón ─────────────────────────────────────────────────────
 CARD_WIDTH      = 520
 LOGO_HEADER_H   = 210        # altura fija del banner logo_superior.jpeg en píxeles
+LOGO_PADDING    = 20         # margen horizontal del banner (cada lado)
 RENDER_SCALE    = 150 / 72   # renderiza el PDF a ~150 DPI
 HEADER_FRACTION = 0.20       # fracción del alto de página que ocupa el header del PDF
                               # (usada si la detección automática falla)
@@ -108,11 +109,11 @@ class PDFProcessor:
     # ── superposición del número en el círculo del logo ───────────────────────
 
     def _superponer_numero(self, canvas: Image.Image, numero: str,
-                           header_h: int) -> Image.Image:
-        draw = ImageDraw.Draw(canvas)
-        W    = canvas.width
+                           header_h: int, logo_padding: int = 0) -> Image.Image:
+        draw    = ImageDraw.Draw(canvas)
+        logo_w  = canvas.width - 2 * logo_padding
 
-        cx = int(W * CIRCULO_X)
+        cx = int(logo_padding + logo_w * CIRCULO_X)
         cy = int(header_h * CIRCULO_Y)
 
         max_ancho = int(W * 0.28)
@@ -194,17 +195,18 @@ class PDFProcessor:
         cut_y     = int(pdf_scaled.height * header_fraction)
         grid_crop = pdf_scaled.crop((0, cut_y, CARD_WIDTH, pdf_scaled.height))
 
-        # Escalar logo a ancho fijo y altura fija
+        # Escalar logo a ancho reducido (con padding lateral) y altura fija
+        logo_w      = CARD_WIDTH - 2 * LOGO_PADDING
         logo_h      = LOGO_HEADER_H
-        logo_scaled = logo.resize((CARD_WIDTH, logo_h), Image.LANCZOS)
+        logo_scaled = logo.resize((logo_w, logo_h), Image.LANCZOS)
 
-        # Canvas portrait: logo arriba + grilla del PDF abajo
+        # Canvas portrait: logo centrado arriba + grilla del PDF abajo
         canvas = Image.new('RGB', (CARD_WIDTH, logo_h + grid_crop.height), 'white')
-        canvas.paste(logo_scaled, (0, 0))
+        canvas.paste(logo_scaled, (LOGO_PADDING, 0))
         canvas.paste(grid_crop,   (0, logo_h))
 
-        # Escribir número en el círculo dorado del logo
-        canvas = self._superponer_numero(canvas, numero, logo_h)
+        # Escribir número en el círculo dorado del logo (con offset del padding)
+        canvas = self._superponer_numero(canvas, numero, logo_h, logo_padding=LOGO_PADDING)
 
         return canvas
 
