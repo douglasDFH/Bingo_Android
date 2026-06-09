@@ -220,16 +220,23 @@ class PDFProcessor:
                 texto      = page.get_text()
                 page_h_pts = page.rect.height
 
-                # Detectar dónde termina el header del PDF (bloque de imagen)
-                max_img_y = 0.0
+                # Detectar el header: buscar el bloque de imagen que empieza
+                # más arriba en la página (el banner decorativo, no el fondo)
+                top_block_bb = None
+                min_y0 = float('inf')
                 for block in page.get_text('dict').get('blocks', []):
                     if block.get('type') == 1:  # bloque de imagen
                         bb = block.get('bbox', [])
-                        if len(bb) >= 4:
-                            max_img_y = max(max_img_y, float(bb[3]))
+                        if len(bb) >= 4 and float(bb[1]) < min_y0:
+                            min_y0 = float(bb[1])
+                            top_block_bb = bb
 
-                header_fraction = (max_img_y / page_h_pts) if max_img_y > 0 \
-                                  else HEADER_FRACTION
+                if top_block_bb is not None:
+                    fraction = float(top_block_bb[3]) / page_h_pts
+                    # Sanidad: si cubre más del 40% es probablemente el fondo, usar default
+                    header_fraction = fraction if fraction <= 0.40 else HEADER_FRACTION
+                else:
+                    header_fraction = HEADER_FRACTION
 
                 # Renderizar página como imagen
                 mat = fitz.Matrix(RENDER_SCALE, RENDER_SCALE)
