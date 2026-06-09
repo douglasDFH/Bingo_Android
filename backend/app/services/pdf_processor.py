@@ -22,6 +22,7 @@ CIRCULO_Y = 0.430   # centro Y del círculo como fracción del alto del logo
 
 # ── parámetros del cartón ─────────────────────────────────────────────────────
 CARD_WIDTH      = 620
+LOGO_HEADER_H   = 160        # altura fija del banner logo_superior.jpeg en píxeles
 RENDER_SCALE    = 150 / 72   # renderiza el PDF a ~150 DPI
 HEADER_FRACTION = 0.20       # fracción del alto de página que ocupa el header del PDF
                               # (usada si la detección automática falla)
@@ -193,9 +194,8 @@ class PDFProcessor:
         cut_y     = int(pdf_scaled.height * header_fraction)
         grid_crop = pdf_scaled.crop((0, cut_y, CARD_WIDTH, pdf_scaled.height))
 
-        # Escalar logo al ancho del cartón
-        lw, lh    = logo.size
-        logo_h    = int(lh * CARD_WIDTH / lw)
+        # Escalar logo a ancho fijo y altura fija
+        logo_h      = LOGO_HEADER_H
         logo_scaled = logo.resize((CARD_WIDTH, logo_h), Image.LANCZOS)
 
         # Canvas portrait: logo arriba + grilla del PDF abajo
@@ -303,9 +303,7 @@ class PDFProcessor:
         if logo is None:
             return
         img = Image.open(ruta_imagen).convert('RGB')
-        lw, lh   = logo.size
-        header_h = int(lh * CARD_WIDTH / lw)
-        img = self._superponer_numero(img, numero, header_h)
+        img = self._superponer_numero(img, numero, LOGO_HEADER_H)
         img.save(ruta_imagen, 'JPEG', quality=90)
 
     # ── procesamiento completo del PDF ────────────────────────────────────────
