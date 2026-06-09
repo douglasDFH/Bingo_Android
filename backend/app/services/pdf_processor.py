@@ -116,14 +116,14 @@ class PDFProcessor:
         cx = int(logo_padding + logo_w * CIRCULO_X)
         cy = int(header_h * CIRCULO_Y)
 
-        max_ancho = int(W * 0.28)
+        max_ancho = int(logo_w * 0.28)
 
         font_num   = None
         font_label = None
         size_num   = 10
 
         if FONT_PATH:
-            size_num = int(W * 0.10)
+            size_num = int(logo_w * 0.10)
             while size_num >= 10:
                 try:
                     f    = ImageFont.truetype(FONT_PATH, size_num)
