@@ -38,6 +38,9 @@ public class UsuariosActivity extends AppCompatActivity {
     private final List<JSONObject> usuarios = new ArrayList<>();
     private final Handler handler = new Handler(Looper.getMainLooper());
 
+    private final ArrayList<String> grupoNombres = new ArrayList<>();
+    private final ArrayList<Integer> grupoIds = new ArrayList<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -63,7 +66,29 @@ public class UsuariosActivity extends AppCompatActivity {
         FloatingActionButton fab = findViewById(R.id.fab);
         fab.setOnClickListener(v -> mostrarDialogoCrear());
 
+        cargarGrupos();
         cargarUsuarios();
+    }
+
+    private void cargarGrupos() {
+        ApiClient.get("/grupos", new ApiClient.Callback() {
+            @Override
+            public void onSuccess(String body) {
+                handler.post(() -> {
+                    try {
+                        JSONArray arr = new JSONArray(body);
+                        grupoNombres.clear(); grupoIds.clear();
+                        grupoNombres.add("Sin grupo"); grupoIds.add(0);
+                        for (int i = 0; i < arr.length(); i++) {
+                            JSONObject g = arr.getJSONObject(i);
+                            grupoNombres.add(g.getString("nombre"));
+                            grupoIds.add(g.getInt("id"));
+                        }
+                    } catch (Exception ignored) {}
+                });
+            }
+            @Override public void onError(String error) {}
+        });
     }
 
     private void cargarUsuarios() {
@@ -99,14 +124,23 @@ public class UsuariosActivity extends AppCompatActivity {
         return adapter;
     }
 
+    private ArrayAdapter<String> crearAdapterGrupos() {
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, grupoNombres);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        return adapter;
+    }
+
     private void mostrarDialogoCrear() {
         View view = LayoutInflater.from(this).inflate(R.layout.dialog_usuario, null);
         EditText etUsername = view.findViewById(R.id.etUsername);
         EditText etPassword = view.findViewById(R.id.etPassword);
         EditText etConfirm  = view.findViewById(R.id.etConfirm);
         Spinner  spRol      = view.findViewById(R.id.spRol);
+        Spinner  spGrupo    = view.findViewById(R.id.spGrupo);
         spRol.setAdapter(crearAdapterRoles());
-        spRol.setSelection(1); // Vendedor por defecto
+        spRol.setSelection(1);
+        spGrupo.setAdapter(crearAdapterGrupos());
         view.findViewById(R.id.layoutActivo).setVisibility(View.GONE);
 
         new AlertDialog.Builder(this)
@@ -117,6 +151,8 @@ public class UsuariosActivity extends AppCompatActivity {
                     String password = etPassword.getText().toString();
                     String confirm  = etConfirm.getText().toString();
                     String rol = spRol.getSelectedItem().toString().equals("Admin") ? "admin" : "vendedor";
+                    int posGrupo = spGrupo.getSelectedItemPosition();
+                    int grupoId = (posGrupo > 0 && posGrupo < grupoIds.size()) ? grupoIds.get(posGrupo) : 0;
 
                     if (username.isEmpty() || password.isEmpty()) {
                         Toast.makeText(this, "Usuario y contraseña requeridos", Toast.LENGTH_SHORT).show();
@@ -126,18 +162,19 @@ public class UsuariosActivity extends AppCompatActivity {
                         Toast.makeText(this, "Las contraseñas no coinciden", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    crearUsuario(username, password, rol);
+                    crearUsuario(username, password, rol, grupoId);
                 })
                 .setNegativeButton("Cancelar", null)
                 .show();
     }
 
-    private void crearUsuario(String username, String password, String rol) {
+    private void crearUsuario(String username, String password, String rol, int grupoId) {
         try {
             JSONObject body = new JSONObject();
             body.put("username", username);
             body.put("password", password);
             body.put("rol", rol);
+            if (grupoId > 0) body.put("grupo_id", grupoId);
 
             ApiClient.post("/auth/usuarios", body.toString(), new ApiClient.Callback() {
                 @Override
@@ -164,18 +201,23 @@ public class UsuariosActivity extends AppCompatActivity {
         EditText etPassword = view.findViewById(R.id.etPassword);
         EditText etConfirm  = view.findViewById(R.id.etConfirm);
         Spinner     spRol   = view.findViewById(R.id.spRol);
+        Spinner     spGrupo = view.findViewById(R.id.spGrupo);
         spRol.setAdapter(crearAdapterRoles());
+        spGrupo.setAdapter(crearAdapterGrupos());
         SwitchCompat swActivo = view.findViewById(R.id.swActivo);
 
         try {
             etUsername.setText(usuario.getString("username"));
             etUsername.setEnabled(false);
             etUsername.setAlpha(0.5f);
-
-            String rolActual = usuario.getString("rol");
-            spRol.setSelection(rolActual.equals("admin") ? 0 : 1);
-
+            spRol.setSelection(usuario.getString("rol").equals("admin") ? 0 : 1);
             swActivo.setChecked(usuario.getBoolean("activo"));
+
+            // Preseleccionar grupo actual
+            int grupoActualId = usuario.optInt("grupo_id", 0);
+            for (int i = 0; i < grupoIds.size(); i++) {
+                if (grupoIds.get(i) == grupoActualId) { spGrupo.setSelection(i); break; }
+            }
         } catch (Exception ignored) {}
 
         new AlertDialog.Builder(this)
@@ -186,25 +228,28 @@ public class UsuariosActivity extends AppCompatActivity {
                     String confirm  = etConfirm.getText().toString();
                     String rol = spRol.getSelectedItem().toString().equals("Admin") ? "admin" : "vendedor";
                     boolean activo = swActivo.isChecked();
+                    int posGrupo = spGrupo.getSelectedItemPosition();
+                    int grupoId = (posGrupo > 0 && posGrupo < grupoIds.size()) ? grupoIds.get(posGrupo) : 0;
 
                     if (!password.isEmpty() && !password.equals(confirm)) {
                         Toast.makeText(this, "Las contraseñas no coinciden", Toast.LENGTH_SHORT).show();
                         return;
                     }
                     try {
-                        actualizarUsuario(usuario.getInt("id"), password, rol, activo);
+                        actualizarUsuario(usuario.getInt("id"), password, rol, activo, grupoId);
                     } catch (Exception ignored) {}
                 })
                 .setNegativeButton("Cancelar", null)
                 .show();
     }
 
-    private void actualizarUsuario(int userId, String password, String rol, boolean activo) {
+    private void actualizarUsuario(int userId, String password, String rol, boolean activo, int grupoId) {
         try {
             JSONObject body = new JSONObject();
             if (!password.isEmpty()) body.put("password", password);
             body.put("rol", rol);
             body.put("activo", activo);
+            body.put("grupo_id", grupoId > 0 ? grupoId : JSONObject.NULL);
 
             ApiClient.put("/auth/usuarios/" + userId, body.toString(), new ApiClient.Callback() {
                 @Override

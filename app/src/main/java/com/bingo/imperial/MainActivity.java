@@ -75,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         android.widget.Button btnUsuarios          = findViewById(R.id.btnUsuarios);
+        android.widget.Button btnGrupos            = findViewById(R.id.btnGrupos);
         android.widget.Button btnBanners           = findViewById(R.id.btnBanners);
         android.widget.Button btnMigrarNumeros      = findViewById(R.id.btnMigrarNumeros);
         android.widget.Button btnRegenerarImagenes  = findViewById(R.id.btnRegenerarImagenes);
@@ -82,6 +83,10 @@ public class MainActivity extends AppCompatActivity {
             btnUsuarios.setVisibility(android.view.View.VISIBLE);
             btnUsuarios.setOnClickListener(v ->
                     startActivity(new Intent(this, UsuariosActivity.class)));
+
+            btnGrupos.setVisibility(android.view.View.VISIBLE);
+            btnGrupos.setOnClickListener(v ->
+                    startActivity(new Intent(this, GruposActivity.class)));
 
             btnBanners.setVisibility(android.view.View.VISIBLE);
             btnBanners.setOnClickListener(v ->

@@ -68,6 +68,21 @@
             android:background="@android:drawable/btn_dropdown"
             android:layout_marginBottom="16dp" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Grupo"
+            android:textSize="13sp"
+            android:textColor="#6B7280"
+            android:layout_marginBottom="6dp" />
+
+        <Spinner
+            android:id="@+id/spGrupo"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@android:drawable/btn_dropdown"
+            android:layout_marginBottom="16dp" />
+
         <LinearLayout
             android:id="@+id/layoutActivo"
             android:layout_width="match_parent"

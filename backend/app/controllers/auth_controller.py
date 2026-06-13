@@ -5,6 +5,7 @@ from flask_jwt_extended import (
 )
 from ..models import db
 from ..models.user import User
+from ..models.grupo import Grupo
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -101,13 +102,16 @@ def crear_usuario():
     username = data.get('username', '').strip()
     password = data.get('password', '')
     rol = data.get('rol', User.ROL_VENDEDOR)
+    grupo_id = data.get('grupo_id') or None
 
     if not username or not password:
         return jsonify({'error': 'Usuario y contraseña requeridos'}), 400
     if User.query.filter_by(username=username).first():
         return jsonify({'error': 'El usuario ya existe'}), 409
+    if grupo_id and not Grupo.query.get(grupo_id):
+        return jsonify({'error': 'Grupo no encontrado'}), 404
 
-    user = User(username=username, rol=rol)
+    user = User(username=username, rol=rol, grupo_id=grupo_id)
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
@@ -128,6 +132,11 @@ def actualizar_usuario(user_id):
         if str(user_id) == get_jwt_identity() and not data['activo']:
             return jsonify({'error': 'No puedes desactivar tu propia cuenta'}), 400
         user.activo = bool(data['activo'])
+    if 'grupo_id' in data:
+        gid = data['grupo_id'] or None
+        if gid and not Grupo.query.get(gid):
+            return jsonify({'error': 'Grupo no encontrado'}), 404
+        user.grupo_id = gid
 
     db.session.commit()
     return jsonify(user.to_dict())

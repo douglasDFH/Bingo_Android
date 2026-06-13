@@ -16,6 +16,7 @@ class Carton(db.Model):
     pagina_origen = db.Column(db.Integer, nullable=False)
     ruta_imagen = db.Column(db.String(500), nullable=False)
     vendedor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    grupo_id    = db.Column(db.Integer, db.ForeignKey('grupos.id'), nullable=True, index=True)
 
     # Estado
     estado = db.Column(db.String(20), default=ESTADO_DISPONIBLE, nullable=False, index=True)
@@ -60,6 +61,7 @@ class Carton(db.Model):
             'pagina_origen': self.pagina_origen,
             'ruta_imagen': self.ruta_imagen,
             'vendedor_id': self.vendedor_id,
+            'grupo_id': self.grupo_id,
         }
 
     def __repr__(self):

@@ -8,8 +8,11 @@ import android.os.Looper;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.AdapterView;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -52,17 +55,24 @@ public class SubirPDFActivity extends AppCompatActivity {
     private TextView tvTiempoRestante, tvCartonesProcesando, tvDeTotales;
     private TextView tvResultNombre, tvResultTotal, tvResultNuevos, tvResultErrores;
     private Button btnSubir, btnVerCartonesEnVivo;
-    private Spinner spUsuario;
     private Spinner spBanner;
+    private Spinner spGrupo;
+    private CheckBox cbTodos;
+    private LinearLayout layoutUsuariosGrupo, layoutCheckboxesUsuarios;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private int pdfId = -1;
-    private int targetUserId = 0;
-    private int selectedBannerId = 0; // 0 = sin banner
+    private int selectedBannerId = 0;
+    private int selectedGrupoId = 0;
     private Runnable pollingRunnable;
     private boolean cancelado = false;
 
     private final ArrayList<String> bannerNombres = new ArrayList<>();
     private final ArrayList<Integer> bannerIds = new ArrayList<>();
+    private final ArrayList<String> grupoNombres = new ArrayList<>();
+    private final ArrayList<Integer> grupoIds = new ArrayList<>();
+    // Usuarios del grupo seleccionado (para los checkboxes)
+    private final ArrayList<Integer> grupoUsuarioIds = new ArrayList<>();
+    private final ArrayList<CheckBox> checkboxesUsuarios = new ArrayList<>();
 
     // Tiempo real
     private long uploadStartTime = 0;
@@ -104,8 +114,11 @@ public class SubirPDFActivity extends AppCompatActivity {
         tvResultErrores      = findViewById(R.id.tvResultErrores);
         btnSubir             = findViewById(R.id.btnSubir);
         btnVerCartonesEnVivo = findViewById(R.id.btnVerCartonesEnVivo);
-        spUsuario            = findViewById(R.id.spUsuario);
-        spBanner             = findViewById(R.id.spBanner);
+        spBanner                = findViewById(R.id.spBanner);
+        spGrupo                 = findViewById(R.id.spGrupo);
+        cbTodos                 = findViewById(R.id.cbTodos);
+        layoutUsuariosGrupo     = findViewById(R.id.layoutUsuariosGrupo);
+        layoutCheckboxesUsuarios = findViewById(R.id.layoutCheckboxesUsuarios);
 
         cardArchivo.setOnClickListener(v -> picker.launch(new String[]{"application/pdf"}));
         btnSubir.setOnClickListener(v -> iniciarSubida());
@@ -117,7 +130,7 @@ public class SubirPDFActivity extends AppCompatActivity {
         SessionManager session = new SessionManager(this);
         if (session.isAdmin()) {
             cardAsignar.setVisibility(View.VISIBLE);
-            cargarUsuariosParaAsignar();
+            cargarGruposParaAsignar();
         }
 
         cargarBanners();
@@ -165,27 +178,78 @@ public class SubirPDFActivity extends AppCompatActivity {
         });
     }
 
-    private void cargarUsuariosParaAsignar() {
-        ApiClient.get("/usuarios", new ApiClient.Callback() {
+    private void cargarGruposParaAsignar() {
+        ApiClient.get("/grupos", new ApiClient.Callback() {
             @Override public void onSuccess(String body) {
                 handler.post(() -> {
                     try {
                         JSONArray arr = new JSONArray(body);
-                        usuarioNombres.clear(); usuarioIds.clear();
-                        usuarioNombres.add("Sin asignar (Admin)"); usuarioIds.add(0);
+                        grupoNombres.clear(); grupoIds.clear();
+                        grupoNombres.add("Sin grupo asignado"); grupoIds.add(0);
                         for (int i = 0; i < arr.length(); i++) {
-                            JSONObject u = arr.getJSONObject(i);
-                            usuarioNombres.add(u.getString("username") + " (" + u.getString("rol") + ")");
-                            usuarioIds.add(u.getInt("id"));
+                            JSONObject g = arr.getJSONObject(i);
+                            grupoNombres.add(g.getString("nombre"));
+                            grupoIds.add(g.getInt("id"));
                         }
                         ArrayAdapter<String> adapter = new ArrayAdapter<>(SubirPDFActivity.this,
-                                android.R.layout.simple_spinner_item, usuarioNombres);
+                                android.R.layout.simple_spinner_item, grupoNombres);
                         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-                        spUsuario.setAdapter(adapter);
+                        spGrupo.setAdapter(adapter);
+                        spGrupo.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                            @Override
+                            public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
+                                int gid = (pos > 0 && pos < grupoIds.size()) ? grupoIds.get(pos) : 0;
+                                selectedGrupoId = gid;
+                                if (gid > 0) {
+                                    cargarUsuariosDelGrupo(gid);
+                                } else {
+                                    layoutUsuariosGrupo.setVisibility(View.GONE);
+                                }
+                            }
+                            @Override public void onNothingSelected(AdapterView<?> parent) {}
+                        });
                     } catch (Exception ignored) {}
                 });
             }
             @Override public void onError(String error) {}
+        });
+    }
+
+    private void cargarUsuariosDelGrupo(int grupoId) {
+        ApiClient.get("/grupos/" + grupoId + "/usuarios", new ApiClient.Callback() {
+            @Override public void onSuccess(String body) {
+                handler.post(() -> {
+                    try {
+                        JSONArray arr = new JSONArray(body);
+                        grupoUsuarioIds.clear();
+                        checkboxesUsuarios.clear();
+                        layoutCheckboxesUsuarios.removeAllViews();
+
+                        for (int i = 0; i < arr.length(); i++) {
+                            JSONObject u = arr.getJSONObject(i);
+                            int uid = u.getInt("id");
+                            String nombre = u.getString("username");
+                            grupoUsuarioIds.add(uid);
+
+                            CheckBox cb = new CheckBox(SubirPDFActivity.this);
+                            cb.setText(nombre);
+                            cb.setChecked(false);
+                            cb.setEnabled(!cbTodos.isChecked());
+                            checkboxesUsuarios.add(cb);
+                            layoutCheckboxesUsuarios.addView(cb);
+                        }
+
+                        layoutUsuariosGrupo.setVisibility(View.VISIBLE);
+
+                        cbTodos.setOnCheckedChangeListener((btn, checked) -> {
+                            for (CheckBox cb : checkboxesUsuarios) cb.setEnabled(!checked);
+                        });
+                    } catch (Exception ignored) {}
+                });
+            }
+            @Override public void onError(String error) {
+                handler.post(() -> layoutUsuariosGrupo.setVisibility(View.GONE));
+            }
         });
     }
 
@@ -220,9 +284,6 @@ public class SubirPDFActivity extends AppCompatActivity {
         tvTiempoRestante.setVisibility(View.GONE);
         btnVerCartonesEnVivo.setVisibility(View.GONE);
         tvProgreso.setText("Preparando archivo...");
-
-        int posUsuario = spUsuario.getSelectedItemPosition();
-        targetUserId = (posUsuario > 0 && posUsuario < usuarioIds.size()) ? usuarioIds.get(posUsuario) : 0;
 
         int posBanner = spBanner.getSelectedItemPosition();
         selectedBannerId = (posBanner >= 0 && posBanner < bannerIds.size()) ? bannerIds.get(posBanner) : 0;
@@ -336,8 +397,20 @@ public class SubirPDFActivity extends AppCompatActivity {
             try {
                 JSONObject bodyJson = new JSONObject();
                 bodyJson.put("upload_id", uploadId);
-                if (targetUserId > 0) bodyJson.put("usuario_id", targetUserId);
                 bodyJson.put("banner_id", selectedBannerId);
+                if (selectedGrupoId > 0) {
+                    bodyJson.put("grupo_id", selectedGrupoId);
+                    // Si no está "Todos", enviar IDs de usuarios seleccionados
+                    if (cbTodos != null && !cbTodos.isChecked()) {
+                        JSONArray uids = new JSONArray();
+                        for (int i = 0; i < checkboxesUsuarios.size(); i++) {
+                            if (checkboxesUsuarios.get(i).isChecked() && i < grupoUsuarioIds.size()) {
+                                uids.put(grupoUsuarioIds.get(i));
+                            }
+                        }
+                        if (uids.length() > 0) bodyJson.put("usuarios_ids", uids);
+                    }
+                }
 
                 OkHttpClient finalizeClient = new OkHttpClient.Builder()
                         .connectTimeout(30, TimeUnit.SECONDS)

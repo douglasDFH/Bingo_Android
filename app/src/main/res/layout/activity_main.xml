@@ -197,6 +197,15 @@
                         android:visibility="gone"
                         android:layout_marginBottom="10dp" />
 
+                    <Button android:id="@+id/btnGrupos"
+                        android:layout_width="match_parent"
+                        android:layout_height="72dp"
+                        android:text="👥 Gestionar Grupos"
+                        android:backgroundTint="#0F766E"
+                        android:textColor="#fff"
+                        android:visibility="gone"
+                        android:layout_marginBottom="10dp" />
+
                     <Button android:id="@+id/btnBanners"
                         android:layout_width="match_parent"
                         android:layout_height="72dp"

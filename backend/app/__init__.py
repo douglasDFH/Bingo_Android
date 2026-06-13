@@ -28,6 +28,7 @@ def create_app(config_class=Config):
     from .controllers.api_controller import api_bp
     from .controllers.auth_controller import auth_bp
     from .controllers.banner_controller import banner_bp
+    from .controllers.grupo_controller import grupo_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(pdf_bp, url_prefix='/pdf')
@@ -35,6 +36,7 @@ def create_app(config_class=Config):
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(banner_bp, url_prefix='/api/banners')
+    app.register_blueprint(grupo_bp, url_prefix='/api/grupos')
 
     @app.after_request
     def add_cors(response):
@@ -80,10 +82,21 @@ def _migrar_columnas():
         if 'vendedor_id' not in cartones_cols:
             conn.execute(text("ALTER TABLE cartones ADD COLUMN vendedor_id INTEGER"))
             conn.commit()
+        if 'grupo_id' not in cartones_cols:
+            conn.execute(text("ALTER TABLE cartones ADD COLUMN grupo_id INTEGER"))
+            conn.commit()
         if 'subido_por' not in pdfs_cols:
             conn.execute(text("ALTER TABLE pdfs_procesados ADD COLUMN subido_por INTEGER"))
             conn.commit()
-        # Tabla banners se crea automáticamente con db.create_all()
+
+        try:
+            users_cols = [c['name'] for c in inspector.get_columns('users')]
+            if 'grupo_id' not in users_cols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN grupo_id INTEGER"))
+                conn.commit()
+        except Exception:
+            pass
+        # Tablas banners y grupos se crean automáticamente con db.create_all()
 
 
 def _crear_admin_inicial():

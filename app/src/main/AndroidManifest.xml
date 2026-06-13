@@ -29,6 +29,7 @@
         <activity android:name=".UsuariosActivity" />
         <activity android:name=".PDFsActivity" />
         <activity android:name=".BannersActivity" />
+        <activity android:name=".GruposActivity" />
     </application>
 
 </manifest>

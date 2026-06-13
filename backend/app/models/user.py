@@ -15,6 +15,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     rol        = db.Column(db.String(20), default=ROL_VENDEDOR, nullable=False)
     activo     = db.Column(db.Boolean, default=True, nullable=False)
+    grupo_id   = db.Column(db.Integer, db.ForeignKey('grupos.id'), nullable=True, index=True)
     fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_password(self, password):
@@ -29,6 +30,8 @@ class User(db.Model):
             'username': self.username,
             'rol': self.rol,
             'activo': self.activo,
+            'grupo_id': self.grupo_id,
+            'grupo_nombre': self.grupo.nombre if self.grupo else None,
             'fecha_creacion': self.fecha_creacion.isoformat() if self.fecha_creacion else None,
         }
 

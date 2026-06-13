@@ -13,6 +13,7 @@ from ..models import db
 from ..models.pdf_procesado import PDFProcesado
 from ..models.carton import Carton
 from ..models.user import User
+from ..models.grupo import Grupo
 from ..services.pdf_processor import PDFProcessor, PDFProcessorError
 
 api_bp = Blueprint('api', __name__)
@@ -43,20 +44,37 @@ def listar_usuarios():
 def dashboard():
     user_id, rol = _usuario_actual()
 
-    base = Carton.query if rol == User.ROL_ADMIN else Carton.query.filter_by(vendedor_id=user_id)
-    pdfs_base = PDFProcesado.query if rol == User.ROL_ADMIN else PDFProcesado.query.filter_by(subido_por=user_id)
+    if rol == User.ROL_ADMIN:
+        disponibles  = Carton.query.filter_by(estado=Carton.ESTADO_DISPONIBLE).count()
+        vendidos     = Carton.query.filter_by(estado=Carton.ESTADO_VENDIDO).count()
+        reservados   = Carton.query.filter_by(estado=Carton.ESTADO_RESERVADO).count()
+        ingresos     = db.session.query(func.sum(Carton.precio)).filter_by(
+            estado=Carton.ESTADO_VENDIDO).scalar() or 0
+        total_pdfs   = PDFProcesado.query.count()
+        ultimos_pdfs = PDFProcesado.query.order_by(PDFProcesado.fecha_procesado.desc()).limit(5).all()
+    else:
+        usuario = User.query.get(user_id)
+        grupo_id = usuario.grupo_id if usuario else None
 
-    total_cartones = base.count()
-    disponibles = base.filter_by(estado=Carton.ESTADO_DISPONIBLE).count()
-    vendidos = base.filter_by(estado=Carton.ESTADO_VENDIDO).count()
-    reservados = base.filter_by(estado=Carton.ESTADO_RESERVADO).count()
-    ingresos = db.session.query(func.sum(Carton.precio)).filter(
-        Carton.estado == Carton.ESTADO_VENDIDO,
-        *([Carton.vendedor_id == user_id] if rol != User.ROL_ADMIN else [])
-    ).scalar() or 0
+        # Disponibles: todos los del grupo (pool compartido)
+        if grupo_id:
+            disponibles = Carton.query.filter_by(
+                grupo_id=grupo_id, estado=Carton.ESTADO_DISPONIBLE).count()
+        else:
+            disponibles = Carton.query.filter_by(
+                vendedor_id=user_id, estado=Carton.ESTADO_DISPONIBLE).count()
 
-    total_pdfs = pdfs_base.count()
-    ultimos_pdfs = pdfs_base.order_by(PDFProcesado.fecha_procesado.desc()).limit(5).all()
+        # Reservados y vendidos: solo los propios
+        reservados = Carton.query.filter_by(vendedor_id=user_id, estado=Carton.ESTADO_RESERVADO).count()
+        vendidos   = Carton.query.filter_by(vendedor_id=user_id, estado=Carton.ESTADO_VENDIDO).count()
+        ingresos   = db.session.query(func.sum(Carton.precio)).filter_by(
+            vendedor_id=user_id, estado=Carton.ESTADO_VENDIDO).scalar() or 0
+
+        total_pdfs   = PDFProcesado.query.filter_by(subido_por=user_id).count()
+        ultimos_pdfs = (PDFProcesado.query.filter_by(subido_por=user_id)
+                        .order_by(PDFProcesado.fecha_procesado.desc()).limit(5).all())
+
+    total_cartones = disponibles + reservados + vendidos
 
     return jsonify({
         'total_pdfs': total_pdfs,
@@ -76,16 +94,49 @@ def cartones():
     estado = request.args.get('estado', '').strip()
     q = request.args.get('q', '').strip()
     usuario_id = request.args.get('usuario_id', type=int)
+    grupo_id_filter = request.args.get('grupo_id', type=int)
     page = max(int(request.args.get('page', 1)), 1)
     per_page = 30
 
     query = Carton.query
-    if rol != User.ROL_ADMIN:
-        query = query.filter(Carton.vendedor_id == user_id)
-    elif usuario_id:
-        query = query.filter(Carton.vendedor_id == usuario_id)
 
-    if estado:
+    if rol == User.ROL_ADMIN:
+        # Admin: puede filtrar por usuario o grupo
+        if usuario_id:
+            query = query.filter(Carton.vendedor_id == usuario_id)
+        elif grupo_id_filter:
+            query = query.filter(Carton.grupo_id == grupo_id_filter)
+    else:
+        # No-admin: visibilidad por grupo
+        usuario = User.query.get(user_id)
+        grupo_id_usuario = usuario.grupo_id if usuario else None
+
+        if estado == Carton.ESTADO_DISPONIBLE:
+            # Disponibles: todos los del grupo
+            if grupo_id_usuario:
+                query = query.filter(Carton.grupo_id == grupo_id_usuario,
+                                     Carton.estado == Carton.ESTADO_DISPONIBLE)
+            else:
+                query = query.filter(Carton.vendedor_id == user_id,
+                                     Carton.estado == Carton.ESTADO_DISPONIBLE)
+        elif estado in (Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO):
+            # Reservados y vendidos: solo propios
+            query = query.filter(Carton.vendedor_id == user_id, Carton.estado == estado)
+        else:
+            # Todos: disponibles del grupo + propios reservados/vendidos
+            if grupo_id_usuario:
+                query = query.filter(
+                    or_(
+                        and_(Carton.grupo_id == grupo_id_usuario,
+                             Carton.estado == Carton.ESTADO_DISPONIBLE),
+                        and_(Carton.vendedor_id == user_id,
+                             Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO]))
+                    )
+                )
+            else:
+                query = query.filter(Carton.vendedor_id == user_id)
+
+    if estado and rol == User.ROL_ADMIN:
         query = query.filter(Carton.estado == estado)
     if q:
         like = f'%{q}%'
@@ -166,8 +217,19 @@ def subir_pdf():
         return jsonify({'error': 'Solo se permiten archivos PDF'}), 400
 
     user_id, rol = _usuario_actual()
-    target_user_id = request.form.get('usuario_id', type=int) or user_id
-    banner_id = request.form.get('banner_id', type=int)  # None = default, 0 = sin banner
+    banner_id = request.form.get('banner_id', type=int)
+
+    # Resolución de grupo y usuarios
+    grupo_id = request.form.get('grupo_id', type=int)
+    usuarios_ids_str = request.form.get('usuarios_ids', '')
+    usuarios_ids = [int(x) for x in usuarios_ids_str.split(',') if x.strip().isdigit()] if usuarios_ids_str else []
+    # Si no se envió grupo y el usuario no es admin, usar su propio grupo
+    if not grupo_id:
+        uploader = User.query.get(user_id)
+        if uploader and uploader.grupo_id:
+            grupo_id = uploader.grupo_id
+    # Fallback: asignar al propio usuario si no hay grupo
+    target_user_id = request.form.get('usuario_id', type=int) or (user_id if not grupo_id else None)
 
     nombre_original = secure_filename(archivo.filename)
     nombre_unico = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{nombre_original}"
@@ -188,7 +250,7 @@ def subir_pdf():
     app = current_app._get_current_object()
     threading.Thread(
         target=_procesar_pdf_async,
-        args=(app, pdf.id, target_user_id, banner_id),
+        args=(app, pdf.id, target_user_id, banner_id, grupo_id, usuarios_ids or None),
         daemon=True,
     ).start()
 
@@ -262,7 +324,8 @@ def _resolver_banner_path(banner_id):
     return PDFProcessor._USE_DEFAULT
 
 
-def _procesar_pdf_async(app, pdf_id, vendedor_id=None, banner_id=None):
+def _procesar_pdf_async(app, pdf_id, vendedor_id=None, banner_id=None,
+                        grupo_id=None, usuarios_ids=None):
     with app.app_context():
         pdf = PDFProcesado.query.get(pdf_id)
         if not pdf:
@@ -281,23 +344,50 @@ def _procesar_pdf_async(app, pdf_id, vendedor_id=None, banner_id=None):
             pdf.carpeta_imagenes = carpeta_imgs
             db.session.commit()
 
-            pendientes = []  # cartones aún no guardados
+            # Resolver lista de usuarios para distribución round-robin
+            if grupo_id:
+                if usuarios_ids:
+                    asignados = [User.query.get(uid) for uid in usuarios_ids]
+                    asignados = [u for u in asignados if u and u.activo]
+                else:
+                    asignados = (User.query.filter_by(grupo_id=grupo_id, activo=True)
+                                 .order_by(User.id).all())
+            else:
+                asignados = [User.query.get(vendedor_id)] if vendedor_id else []
+                asignados = [u for u in asignados if u]
+
+            from threading import Lock
+            _lock = Lock()
+            carton_counter = [0]
+
+            pendientes = []
 
             def guardar_carton(item):
                 """Llamado por el procesador cada vez que termina una página."""
                 if Carton.query.filter_by(numero=item['numero']).first():
                     return
+
+                with _lock:
+                    idx = carton_counter[0]
+                    carton_counter[0] += 1
+
+                if asignados:
+                    assigned_user = asignados[idx % len(asignados)]
+                    assigned_vendedor_id = assigned_user.id
+                else:
+                    assigned_vendedor_id = vendedor_id
+
                 db.session.add(Carton(
                     numero=item['numero'],
                     pdf_id=pdf.id,
                     pagina_origen=item.get('pagina', item['indice'] + 1),
                     ruta_imagen=item['ruta'],
                     estado=Carton.ESTADO_DISPONIBLE,
-                    vendedor_id=vendedor_id,
+                    vendedor_id=assigned_vendedor_id,
+                    grupo_id=grupo_id,
                 ))
                 pdf.paginas_ok = (pdf.paginas_ok or 0) + 1
                 pendientes.append(1)
-                # Commit cada 5 cartones para que el polling lo vea
                 if len(pendientes) % 5 == 0:
                     db.session.commit()
 
@@ -466,13 +556,33 @@ def upload_finalize():
     except Exception as e:
         return jsonify({'error': f'Auth error: {e}'}), 401
 
-    target_user_id = data.get('usuario_id') or user_id
-    banner_id = data.get('banner_id')  # None = default, 0 = sin banner, N = banner específico
+    banner_id = data.get('banner_id')
     if banner_id is not None:
         try:
             banner_id = int(banner_id)
         except (TypeError, ValueError):
             banner_id = None
+
+    # Resolución de grupo y usuarios
+    grupo_id = data.get('grupo_id') or None
+    if grupo_id:
+        try:
+            grupo_id = int(grupo_id)
+        except (TypeError, ValueError):
+            grupo_id = None
+    usuarios_ids = data.get('usuarios_ids') or []
+    if isinstance(usuarios_ids, list):
+        usuarios_ids = [int(x) for x in usuarios_ids if str(x).isdigit()]
+    else:
+        usuarios_ids = []
+
+    # Si no se envió grupo, usar el grupo del usuario que sube
+    if not grupo_id:
+        uploader = User.query.get(user_id)
+        if uploader and uploader.grupo_id:
+            grupo_id = uploader.grupo_id
+
+    target_user_id = data.get('usuario_id') or (user_id if not grupo_id else None)
 
     nombre_original = 'archivo.pdf'
     meta_path = os.path.join(chunks_dir, 'meta.txt')
@@ -523,9 +633,10 @@ def upload_finalize():
     app = current_app._get_current_object()
     threading.Thread(
         target=_procesar_pdf_async,
-        args=(app, pdf.id, target_user_id, banner_id),
+        args=(app, pdf.id, target_user_id, banner_id, grupo_id, usuarios_ids or None),
         daemon=True,
     ).start()
 
-    print(f'[BINGO] upload_finalize OK: pdf_id={pdf.id} nombre={nombre_original} banner_id={banner_id}', flush=True)
+    print(f'[BINGO] upload_finalize OK: pdf_id={pdf.id} nombre={nombre_original} '
+          f'banner_id={banner_id} grupo_id={grupo_id}', flush=True)
     return jsonify({'ok': True, 'pdf_id': pdf.id, 'nombre': nombre_original, 'estado': 'procesando'})
