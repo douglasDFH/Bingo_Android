@@ -5,12 +5,6 @@
     android:layout_height="match_parent">
 
     <!-- Imagen de fondo full screen -->
-    <ImageView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:src="@drawable/bg_login"
-        android:scaleType="centerCrop"
-        android:contentDescription="Fondo" />
 
     <!-- Overlay oscuro para legibilidad -->
     <View
@@ -22,73 +16,75 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
         android:gravity="center"
+        android:orientation="vertical"
         android:padding="32dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
             android:text="🎱 Bingo Supremo"
-            android:textSize="28sp"
-            android:textStyle="bold"
             android:textColor="#FFFFFF"
-            android:layout_marginBottom="8dp"/>
+            android:textSize="28sp"
+            android:textStyle="bold" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="40dp"
             android:text="Inicia sesión para continuar"
-            android:textSize="14sp"
             android:textColor="#CCCCCC"
-            android:layout_marginBottom="40dp"/>
+            android:textSize="14sp" />
 
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Usuario"
             android:layout_marginBottom="16dp"
+            android:hint="Usuario"
+            app:boxBackgroundColor="#33FFFFFF"
             app:boxStrokeColor="#FFFFFF"
-            app:hintTextColor="#FFFFFF"
-            app:boxBackgroundColor="#33FFFFFF">
+            app:hintTextColor="#FFFFFF">
+
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etUsuario"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="text"
                 android:imeOptions="actionNext"
+                android:inputType="text"
                 android:textColor="#FFFFFF"
-                android:textColorHint="#BBBBBB"/>
+                android:textColorHint="#BBBBBB" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Contraseña"
             android:layout_marginBottom="24dp"
-            app:passwordToggleEnabled="true"
+            android:hint="Contraseña"
+            app:boxBackgroundColor="#33FFFFFF"
             app:boxStrokeColor="#FFFFFF"
             app:hintTextColor="#FFFFFF"
-            app:boxBackgroundColor="#33FFFFFF">
+            app:passwordToggleEnabled="true">
+
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etPassword"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textPassword"
                 android:imeOptions="actionDone"
+                android:inputType="textPassword"
                 android:textColor="#FFFFFF"
-                android:textColorHint="#BBBBBB"/>
+                android:textColorHint="#BBBBBB" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <Button
             android:id="@+id/btnLogin"
             android:layout_width="match_parent"
             android:layout_height="56dp"
+            android:backgroundTint="#6C63FF"
             android:text="Ingresar"
-            android:textSize="16sp"
-            android:backgroundTint="#6C63FF"/>
+            android:textSize="16sp" />
 
         <ProgressBar
             android:id="@+id/progressBar"
@@ -96,7 +92,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:indeterminateTint="#FFFFFF"
-            android:visibility="gone"/>
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/tvError"
@@ -104,16 +100,23 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:textColor="#FF6B6B"
-            android:visibility="gone"/>
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/tvVersion"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="40dp"
-            android:textSize="12sp"
+            android:text="v1.0"
             android:textColor="#AAAAAA"
-            android:text="v1.0"/>
+            android:textSize="12sp" />
+
+        <ImageView
+            android:layout_width="563dp"
+            android:layout_height="703dp"
+            android:contentDescription="Fondo"
+            android:scaleType="fitCenter"
+            android:src="@drawable/bg_login" />
 
     </LinearLayout>
 
