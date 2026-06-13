@@ -47,7 +47,7 @@
                 android:layout_marginBottom="4dp"
                 android:fontFamily="sans-serif-medium"
                 android:letterSpacing="0.05"
-                android:text="Bingo Imperial"
+                android:text="Bingo Supremo"
                 android:textColor="#FFFFFF"
                 android:textSize="30sp"
                 android:textStyle="bold" />
