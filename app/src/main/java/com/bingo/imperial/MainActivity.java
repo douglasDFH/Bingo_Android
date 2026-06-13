@@ -75,12 +75,17 @@ public class MainActivity extends AppCompatActivity {
         });
 
         android.widget.Button btnUsuarios          = findViewById(R.id.btnUsuarios);
+        android.widget.Button btnBanners           = findViewById(R.id.btnBanners);
         android.widget.Button btnMigrarNumeros      = findViewById(R.id.btnMigrarNumeros);
         android.widget.Button btnRegenerarImagenes  = findViewById(R.id.btnRegenerarImagenes);
         if (esAdmin) {
             btnUsuarios.setVisibility(android.view.View.VISIBLE);
             btnUsuarios.setOnClickListener(v ->
                     startActivity(new Intent(this, UsuariosActivity.class)));
+
+            btnBanners.setVisibility(android.view.View.VISIBLE);
+            btnBanners.setOnClickListener(v ->
+                    startActivity(new Intent(this, BannersActivity.class)));
 
             btnMigrarNumeros.setVisibility(android.view.View.VISIBLE);
             btnMigrarNumeros.setOnClickListener(v -> confirmarMigracion());

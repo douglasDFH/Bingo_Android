@@ -21,6 +21,7 @@ class Config:
     # Carpetas
     UPLOAD_FOLDER   = os.path.join(BASE_DIR, 'uploads')
     IMAGENES_FOLDER = os.path.join(BASE_DIR, 'imagenes_generadas')
+    BANNERS_FOLDER  = os.path.join(BASE_DIR, 'uploads', 'banners')
 
     # Límite de subida 200 MB
     MAX_CONTENT_LENGTH = 200 * 1024 * 1024

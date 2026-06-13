@@ -197,6 +197,15 @@
                         android:visibility="gone"
                         android:layout_marginBottom="10dp" />
 
+                    <Button android:id="@+id/btnBanners"
+                        android:layout_width="match_parent"
+                        android:layout_height="72dp"
+                        android:text="🖼 Gestionar Banners"
+                        android:backgroundTint="#7C3AED"
+                        android:textColor="#fff"
+                        android:visibility="gone"
+                        android:layout_marginBottom="10dp" />
+
                     <Button android:id="@+id/btnMigrarNumeros"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

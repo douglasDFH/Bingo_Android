@@ -74,12 +74,38 @@ class PDFProcessor:
     REGEX_NUMERO        = re.compile(r'^\s*(\d{3,8})\s*$')
     REGEX_NUMERO_INLINE = re.compile(r'\b(\d{3,8})\b')
 
-    def __init__(self, dpi: int = 72, formato: str = 'jpeg'):
+    # Sentinel que indica "usa el logo por defecto"
+    _USE_DEFAULT = object()
+
+    def __init__(self, dpi: int = 72, formato: str = 'jpeg',
+                 banner_path=_USE_DEFAULT):
         self.dpi     = dpi
         self.formato = formato.lower()
         if self.formato not in ('jpeg', 'png'):
             raise ValueError("formato debe ser 'jpeg' o 'png'")
-        print(f'[BINGO] PDFProcessor init: dpi={dpi} fuente={FONT_PATH}', flush=True)
+        # banner_path: ruta str = usa ese banner | None = sin banner (PDF original)
+        # _USE_DEFAULT = usa logo_superior.jpeg (comportamiento previo)
+        if banner_path is PDFProcessor._USE_DEFAULT:
+            self.banner_path: Optional[str] = _LOGO_PATH
+        else:
+            self.banner_path = banner_path
+        print(
+            f'[BINGO] PDFProcessor init: dpi={dpi} fuente={FONT_PATH} '
+            f'banner={"<sin banner>" if self.banner_path is None else self.banner_path}',
+            flush=True,
+        )
+
+    # ── carga del banner ──────────────────────────────────────────────────────
+
+    def _cargar_banner(self) -> Optional[Image.Image]:
+        """Carga la imagen del banner para esta instancia."""
+        if self.banner_path is None:
+            return None
+        if self.banner_path == _LOGO_PATH:
+            return _cargar_logo()  # versión cacheada del logo por defecto
+        if os.path.isfile(self.banner_path):
+            return Image.open(self.banner_path).convert('RGB')
+        raise PDFProcessorError(f'Banner no encontrado: {self.banner_path}')
 
     # ── utilidades de fuente ──────────────────────────────────────────────────
 
@@ -173,39 +199,41 @@ class PDFProcessor:
                                       numero: str,
                                       header_fraction: float) -> Image.Image:
         """
-        Crea el cartón portrait:
-          1. logo_superior.jpeg como header (tapa la imagen del PDF)
-          2. Grilla renderizada del PDF (debajo del header, con su diseño original)
-          3. Número del cartón en el círculo dorado del logo
+        Crea el cartón portrait.
+        - Con banner: banner como header + grilla del PDF abajo + número en círculo.
+        - Sin banner (banner_path=None): página PDF escalada tal cual (diseño original).
         """
-        logo = _cargar_logo()
-        if logo is None:
-            raise PDFProcessorError(
-                'logo_superior.jpeg no encontrado en static/. '
-                'Asegúrate de que el archivo esté en backend/app/static/'
-            )
-
-        # Escalar render del PDF a CARD_WIDTH
         pdf_w, pdf_h = pdf_img.size
         pdf_scaled   = pdf_img.resize(
             (CARD_WIDTH, int(pdf_h * CARD_WIDTH / pdf_w)), Image.LANCZOS
         )
 
+        if self.banner_path is None:
+            # Modo PDF original: devolver la página entera sin modificar
+            return pdf_scaled
+
+        banner = self._cargar_banner()
+        if banner is None:
+            raise PDFProcessorError(
+                f'Banner no encontrado: {self.banner_path}. '
+                'Verifica que el archivo exista en el servidor.'
+            )
+
         # Recortar la sección de la grilla (debajo del header del PDF)
         cut_y     = int(pdf_scaled.height * header_fraction)
         grid_crop = pdf_scaled.crop((0, cut_y, CARD_WIDTH, pdf_scaled.height))
 
-        # Escalar logo a ancho reducido (con padding lateral) y altura fija
+        # Escalar banner a ancho reducido (con padding lateral) y altura fija
         logo_w      = CARD_WIDTH - 2 * LOGO_PADDING
         logo_h      = LOGO_HEADER_H
-        logo_scaled = logo.resize((logo_w, logo_h), Image.LANCZOS)
+        logo_scaled = banner.resize((logo_w, logo_h), Image.LANCZOS)
 
-        # Canvas portrait: logo centrado arriba + grilla del PDF abajo
+        # Canvas portrait: banner centrado arriba + grilla del PDF abajo
         canvas = Image.new('RGB', (CARD_WIDTH, logo_h + grid_crop.height), 'white')
         canvas.paste(logo_scaled, (LOGO_PADDING, 0))
         canvas.paste(grid_crop,   (0, logo_h))
 
-        # Escribir número en el círculo dorado del logo (con offset del padding)
+        # Escribir número en el círculo dorado del banner
         canvas = self._superponer_numero(canvas, numero, logo_h, logo_padding=LOGO_PADDING)
 
         return canvas

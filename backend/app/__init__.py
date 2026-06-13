@@ -14,6 +14,7 @@ def create_app(config_class=Config):
     for folder in (
         app.config['UPLOAD_FOLDER'],
         app.config['IMAGENES_FOLDER'],
+        app.config['BANNERS_FOLDER'],
         app.instance_path,
     ):
         os.makedirs(folder, exist_ok=True)
@@ -26,12 +27,14 @@ def create_app(config_class=Config):
     from .controllers.carton_controller import carton_bp
     from .controllers.api_controller import api_bp
     from .controllers.auth_controller import auth_bp
+    from .controllers.banner_controller import banner_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(pdf_bp, url_prefix='/pdf')
     app.register_blueprint(carton_bp, url_prefix='/cartones')
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(banner_bp, url_prefix='/api/banners')
 
     @app.after_request
     def add_cors(response):
@@ -80,6 +83,7 @@ def _migrar_columnas():
         if 'subido_por' not in pdfs_cols:
             conn.execute(text("ALTER TABLE pdfs_procesados ADD COLUMN subido_por INTEGER"))
             conn.commit()
+        # Tabla banners se crea automáticamente con db.create_all()
 
 
 def _crear_admin_inicial():

@@ -167,6 +167,7 @@ def subir_pdf():
 
     user_id, rol = _usuario_actual()
     target_user_id = request.form.get('usuario_id', type=int) or user_id
+    banner_id = request.form.get('banner_id', type=int)  # None = default, 0 = sin banner
 
     nombre_original = secure_filename(archivo.filename)
     nombre_unico = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{nombre_original}"
@@ -185,7 +186,11 @@ def subir_pdf():
 
     import threading
     app = current_app._get_current_object()
-    threading.Thread(target=_procesar_pdf_async, args=(app, pdf.id, target_user_id), daemon=True).start()
+    threading.Thread(
+        target=_procesar_pdf_async,
+        args=(app, pdf.id, target_user_id, banner_id),
+        daemon=True,
+    ).start()
 
     return jsonify({'ok': True, 'pdf_id': pdf.id, 'nombre': nombre_original, 'estado': 'procesando'})
 
@@ -243,17 +248,35 @@ def eliminar_carton(carton_id):
     return jsonify({'ok': True})
 
 
-def _procesar_pdf_async(app, pdf_id, vendedor_id=None):
+def _resolver_banner_path(banner_id):
+    """Retorna la ruta del banner, None (sin banner) o _USE_DEFAULT (logo predeterminado)."""
+    if banner_id is None:
+        return PDFProcessor._USE_DEFAULT  # comportamiento original
+    if banner_id == 0:
+        return None  # sin banner: PDF original
+    from ..models.banner import Banner as BannerModel
+    b = BannerModel.query.get(banner_id)
+    if b and os.path.isfile(b.ruta_imagen):
+        return b.ruta_imagen
+    print(f'[BINGO] AVISO: banner_id={banner_id} no encontrado, usando logo predeterminado', flush=True)
+    return PDFProcessor._USE_DEFAULT
+
+
+def _procesar_pdf_async(app, pdf_id, vendedor_id=None, banner_id=None):
     with app.app_context():
         pdf = PDFProcesado.query.get(pdf_id)
         if not pdf:
             return
         try:
             carpeta_imgs = os.path.join(app.config['IMAGENES_FOLDER'], f'pdf_{pdf.id}')
-            processor = PDFProcessor(
+            banner_path = _resolver_banner_path(banner_id)
+            processor_kwargs = dict(
                 dpi=app.config['DPI_IMAGENES'],
                 formato=app.config['FORMATO_IMAGEN'],
             )
+            if banner_path is not PDFProcessor._USE_DEFAULT:
+                processor_kwargs['banner_path'] = banner_path
+            processor = PDFProcessor(**processor_kwargs)
 
             pdf.carpeta_imagenes = carpeta_imgs
             db.session.commit()
@@ -444,6 +467,12 @@ def upload_finalize():
         return jsonify({'error': f'Auth error: {e}'}), 401
 
     target_user_id = data.get('usuario_id') or user_id
+    banner_id = data.get('banner_id')  # None = default, 0 = sin banner, N = banner específico
+    if banner_id is not None:
+        try:
+            banner_id = int(banner_id)
+        except (TypeError, ValueError):
+            banner_id = None
 
     nombre_original = 'archivo.pdf'
     meta_path = os.path.join(chunks_dir, 'meta.txt')
@@ -492,7 +521,11 @@ def upload_finalize():
         return jsonify({'error': f'Error en base de datos: {e}'}), 500
 
     app = current_app._get_current_object()
-    threading.Thread(target=_procesar_pdf_async, args=(app, pdf.id, target_user_id), daemon=True).start()
+    threading.Thread(
+        target=_procesar_pdf_async,
+        args=(app, pdf.id, target_user_id, banner_id),
+        daemon=True,
+    ).start()
 
-    print(f'[BINGO] upload_finalize OK: pdf_id={pdf.id} nombre={nombre_original}', flush=True)
+    print(f'[BINGO] upload_finalize OK: pdf_id={pdf.id} nombre={nombre_original} banner_id={banner_id}', flush=True)
     return jsonify({'ok': True, 'pdf_id': pdf.id, 'nombre': nombre_original, 'estado': 'procesando'})

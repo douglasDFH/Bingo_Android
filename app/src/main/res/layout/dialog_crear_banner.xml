@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Nombre del banner:"
+        android:textSize="13sp"
+        android:textColor="@color/gray"
+        android:layout_marginBottom="4dp" />
+
+    <EditText
+        android:id="@+id/etNombreBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Ej: Grupo Norte, Reina de la Suerte..."
+        android:inputType="textCapSentences"
+        android:maxLines="1"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/btnElegirImagenBanner"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="📷  Elegir imagen del banner"
+        android:backgroundTint="@color/bg_purple"
+        android:textColor="@color/purple"
+        android:textStyle="bold"
+        android:layout_marginBottom="12dp" />
+
+    <ImageView
+        android:id="@+id/ivPreviewBanner"
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:scaleType="fitCenter"
+        android:background="#F3F4F6"
+        android:visibility="gone"
+        android:layout_marginBottom="4dp" />
+
+    <TextView
+        android:id="@+id/tvImagenSeleccionada"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Sin imagen seleccionada"
+        android:textSize="12sp"
+        android:textColor="@color/gray"
+        android:gravity="center"
+        android:layout_gravity="center_horizontal" />
+
+</LinearLayout>

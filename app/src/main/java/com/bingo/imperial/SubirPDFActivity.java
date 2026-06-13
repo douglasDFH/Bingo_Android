@@ -53,11 +53,16 @@ public class SubirPDFActivity extends AppCompatActivity {
     private TextView tvResultNombre, tvResultTotal, tvResultNuevos, tvResultErrores;
     private Button btnSubir, btnVerCartonesEnVivo;
     private Spinner spUsuario;
+    private Spinner spBanner;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private int pdfId = -1;
     private int targetUserId = 0;
+    private int selectedBannerId = 0; // 0 = sin banner
     private Runnable pollingRunnable;
     private boolean cancelado = false;
+
+    private final ArrayList<String> bannerNombres = new ArrayList<>();
+    private final ArrayList<Integer> bannerIds = new ArrayList<>();
 
     // Tiempo real
     private long uploadStartTime = 0;
@@ -100,6 +105,7 @@ public class SubirPDFActivity extends AppCompatActivity {
         btnSubir             = findViewById(R.id.btnSubir);
         btnVerCartonesEnVivo = findViewById(R.id.btnVerCartonesEnVivo);
         spUsuario            = findViewById(R.id.spUsuario);
+        spBanner             = findViewById(R.id.spBanner);
 
         cardArchivo.setOnClickListener(v -> picker.launch(new String[]{"application/pdf"}));
         btnSubir.setOnClickListener(v -> iniciarSubida());
@@ -113,6 +119,50 @@ public class SubirPDFActivity extends AppCompatActivity {
             cardAsignar.setVisibility(View.VISIBLE);
             cargarUsuariosParaAsignar();
         }
+
+        cargarBanners();
+    }
+
+    private void cargarBanners() {
+        ApiClient.get("/banners", new ApiClient.Callback() {
+            @Override
+            public void onSuccess(String body) {
+                handler.post(() -> {
+                    try {
+                        JSONArray arr = new JSONArray(body);
+                        bannerNombres.clear();
+                        bannerIds.clear();
+                        bannerNombres.add("Sin banner (PDF original)");
+                        bannerIds.add(0);
+                        for (int i = 0; i < arr.length(); i++) {
+                            JSONObject b = arr.getJSONObject(i);
+                            bannerNombres.add(b.getString("nombre"));
+                            bannerIds.add(b.getInt("id"));
+                        }
+                        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                                SubirPDFActivity.this,
+                                android.R.layout.simple_spinner_item,
+                                bannerNombres);
+                        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                        spBanner.setAdapter(adapter);
+                    } catch (Exception ignored) {}
+                });
+            }
+            @Override
+            public void onError(String error) {
+                // Si no hay banners, el spinner queda con "Sin banner" únicamente
+                handler.post(() -> {
+                    bannerNombres.clear(); bannerIds.clear();
+                    bannerNombres.add("Sin banner (PDF original)"); bannerIds.add(0);
+                    ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                            SubirPDFActivity.this,
+                            android.R.layout.simple_spinner_item,
+                            bannerNombres);
+                    adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                    spBanner.setAdapter(adapter);
+                });
+            }
+        });
     }
 
     private void cargarUsuariosParaAsignar() {
@@ -171,8 +221,11 @@ public class SubirPDFActivity extends AppCompatActivity {
         btnVerCartonesEnVivo.setVisibility(View.GONE);
         tvProgreso.setText("Preparando archivo...");
 
-        int pos = spUsuario.getSelectedItemPosition();
-        targetUserId = (pos > 0 && pos < usuarioIds.size()) ? usuarioIds.get(pos) : 0;
+        int posUsuario = spUsuario.getSelectedItemPosition();
+        targetUserId = (posUsuario > 0 && posUsuario < usuarioIds.size()) ? usuarioIds.get(posUsuario) : 0;
+
+        int posBanner = spBanner.getSelectedItemPosition();
+        selectedBannerId = (posBanner >= 0 && posBanner < bannerIds.size()) ? bannerIds.get(posBanner) : 0;
 
         new Thread(this::subirEnChunks).start();
     }
@@ -284,6 +337,7 @@ public class SubirPDFActivity extends AppCompatActivity {
                 JSONObject bodyJson = new JSONObject();
                 bodyJson.put("upload_id", uploadId);
                 if (targetUserId > 0) bodyJson.put("usuario_id", targetUserId);
+                bodyJson.put("banner_id", selectedBannerId);
 
                 OkHttpClient finalizeClient = new OkHttpClient.Builder()
                         .connectTimeout(30, TimeUnit.SECONDS)
