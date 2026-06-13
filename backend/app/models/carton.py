@@ -10,8 +10,12 @@ class Carton(db.Model):
     ESTADO_VENDIDO = 'vendido'
     ESTADO_RESERVADO = 'reservado'
 
+    __table_args__ = (
+        db.UniqueConstraint('numero', 'grupo_id', name='uq_carton_numero_grupo'),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
-    numero = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    numero = db.Column(db.String(20), nullable=False, index=True)
     pdf_id = db.Column(db.Integer, db.ForeignKey('pdfs_procesados.id'), nullable=False)
     pagina_origen = db.Column(db.Integer, nullable=False)
     ruta_imagen = db.Column(db.String(500), nullable=False)

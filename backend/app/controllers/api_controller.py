@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, and_
 from werkzeug.utils import secure_filename
 from ..models import db
 from ..models.pdf_procesado import PDFProcesado
@@ -56,10 +56,16 @@ def dashboard():
         usuario = User.query.get(user_id)
         grupo_id = usuario.grupo_id if usuario else None
 
-        # Disponibles: todos los del grupo (pool compartido)
+        # Disponibles: del grupo pero excluyendo números ocupados en cualquier grupo
         if grupo_id:
-            disponibles = Carton.query.filter_by(
-                grupo_id=grupo_id, estado=Carton.ESTADO_DISPONIBLE).count()
+            occupied_subq = db.session.query(Carton.numero).filter(
+                Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO])
+            ).subquery()
+            disponibles = Carton.query.filter(
+                Carton.grupo_id == grupo_id,
+                Carton.estado == Carton.ESTADO_DISPONIBLE,
+                Carton.numero.notin_(occupied_subq)
+            ).count()
         else:
             disponibles = Carton.query.filter_by(
                 vendedor_id=user_id, estado=Carton.ESTADO_DISPONIBLE).count()
@@ -112,10 +118,16 @@ def cartones():
         grupo_id_usuario = usuario.grupo_id if usuario else None
 
         if estado == Carton.ESTADO_DISPONIBLE:
-            # Disponibles: todos los del grupo
             if grupo_id_usuario:
-                query = query.filter(Carton.grupo_id == grupo_id_usuario,
-                                     Carton.estado == Carton.ESTADO_DISPONIBLE)
+                # Disponibles del grupo, excluyendo números ocupados en cualquier grupo
+                occ = db.session.query(Carton.numero).filter(
+                    Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO])
+                ).subquery()
+                query = query.filter(
+                    Carton.grupo_id == grupo_id_usuario,
+                    Carton.estado == Carton.ESTADO_DISPONIBLE,
+                    Carton.numero.notin_(occ)
+                )
             else:
                 query = query.filter(Carton.vendedor_id == user_id,
                                      Carton.estado == Carton.ESTADO_DISPONIBLE)
@@ -123,14 +135,22 @@ def cartones():
             # Reservados y vendidos: solo propios
             query = query.filter(Carton.vendedor_id == user_id, Carton.estado == estado)
         else:
-            # Todos: disponibles del grupo + propios reservados/vendidos
+            # Todos: disponibles del grupo (sin ocupados) + propios reservados/vendidos
             if grupo_id_usuario:
+                occ = db.session.query(Carton.numero).filter(
+                    Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO])
+                ).subquery()
                 query = query.filter(
                     or_(
-                        and_(Carton.grupo_id == grupo_id_usuario,
-                             Carton.estado == Carton.ESTADO_DISPONIBLE),
-                        and_(Carton.vendedor_id == user_id,
-                             Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO]))
+                        and_(
+                            Carton.grupo_id == grupo_id_usuario,
+                            Carton.estado == Carton.ESTADO_DISPONIBLE,
+                            Carton.numero.notin_(occ)
+                        ),
+                        and_(
+                            Carton.vendedor_id == user_id,
+                            Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO])
+                        )
                     )
                 )
             else:
@@ -163,6 +183,33 @@ def cartones():
 def carton_detalle(carton_id):
     carton = Carton.query.get_or_404(carton_id)
     return jsonify(carton.to_dict())
+
+
+@api_bp.route('/buscar-numero')
+def buscar_numero():
+    """Busca un número de cartón globalmente y devuelve quién lo tiene si está ocupado."""
+    _, _ = _usuario_actual()
+    numero = request.args.get('q', '').strip()
+    if not numero:
+        return jsonify({'error': 'Se requiere q'}), 400
+
+    carton_occ = Carton.query.filter(
+        Carton.numero == numero,
+        Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO])
+    ).first()
+
+    if carton_occ:
+        vendedor = User.query.get(carton_occ.vendedor_id) if carton_occ.vendedor_id else None
+        return jsonify({
+            'encontrado': True,
+            'disponible': False,
+            'estado': carton_occ.estado,
+            'vendedor': vendedor.username if vendedor else 'Desconocido',
+            'comprador': carton_occ.comprador or '',
+        })
+
+    existe = Carton.query.filter_by(numero=numero).first()
+    return jsonify({'encontrado': bool(existe), 'disponible': bool(existe)})
 
 
 @api_bp.route('/cartones/<int:carton_id>/vender', methods=['POST'])
@@ -364,7 +411,7 @@ def _procesar_pdf_async(app, pdf_id, vendedor_id=None, banner_id=None,
 
             def guardar_carton(item):
                 """Llamado por el procesador cada vez que termina una página."""
-                if Carton.query.filter_by(numero=item['numero']).first():
+                if Carton.query.filter_by(numero=item['numero'], grupo_id=grupo_id).first():
                     return
 
                 with _lock:

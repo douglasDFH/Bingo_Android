@@ -10,6 +10,7 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.GridLayoutManager;
@@ -130,9 +131,13 @@ public class CartonesActivity extends AppCompatActivity {
                         JSONArray arr = json.getJSONArray("cartones");
                         totalPaginas = json.getInt("total_paginas");
                         page = p;
-                        tvTotal.setText(json.getInt("total") + " cartones");
+                        int total = json.getInt("total");
+                        tvTotal.setText(total + " cartones");
                         for (int i = 0; i < arr.length(); i++) cartones.add(arr.getJSONObject(i));
                         adapter.notifyDataSetChanged();
+                        if (total == 0 && !busqueda.isEmpty()) {
+                            buscarNumeroGlobal(busqueda);
+                        }
                     } catch (Exception ignored) {}
                     cargando = false;
                     swipeRefresh.setRefreshing(false);
@@ -143,6 +148,38 @@ public class CartonesActivity extends AppCompatActivity {
             public void onError(String error) {
                 handler.post(() -> { cargando = false; swipeRefresh.setRefreshing(false); });
             }
+        });
+    }
+
+    private void buscarNumeroGlobal(String numero) {
+        ApiClient.get("/buscar-numero?q=" + numero, new ApiClient.Callback() {
+            @Override
+            public void onSuccess(String body) {
+                handler.post(() -> {
+                    try {
+                        JSONObject j = new JSONObject(body);
+                        if (!j.optBoolean("disponible", true)) {
+                            String estado   = j.optString("estado", "");
+                            String vendedor = j.optString("vendedor", "Desconocido");
+                            String comprador = j.optString("comprador", "");
+
+                            String accion = estado.equals("vendido") ? "vendido" : "reservado";
+                            StringBuilder msg = new StringBuilder(
+                                    "El cartón " + numero + " fue " + accion + " por: " + vendedor);
+                            if (!comprador.isEmpty())
+                                msg.append("\nComprador: ").append(comprador);
+
+                            new AlertDialog.Builder(CartonesActivity.this)
+                                    .setTitle("Cartón no disponible")
+                                    .setMessage(msg.toString())
+                                    .setPositiveButton("OK", null)
+                                    .show();
+                        }
+                    } catch (Exception ignored) {}
+                });
+            }
+            @Override
+            public void onError(String error) {}
         });
     }
 

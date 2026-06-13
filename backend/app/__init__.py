@@ -96,7 +96,54 @@ def _migrar_columnas():
                 conn.commit()
         except Exception:
             pass
-        # Tablas banners y grupos se crean automáticamente con db.create_all()
+
+        # Migrar unique(numero) → unique(numero, grupo_id) si aún no se hizo
+        try:
+            indexes = inspector.get_indexes('cartones')
+            has_composite = any(
+                idx.get('name') == 'uq_carton_numero_grupo'
+                for idx in indexes
+            )
+            if not has_composite:
+                _migrar_cartones_unique_compuesta(conn)
+        except Exception as e:
+            print(f'[BINGO] AVISO migracion unique cartones: {e}', flush=True)
+
+
+def _migrar_cartones_unique_compuesta(conn):
+    """Recrea la tabla cartones para cambiar UNIQUE(numero) → UNIQUE(numero, grupo_id)."""
+    from sqlalchemy import text
+    conn.execute(text("PRAGMA foreign_keys=OFF"))
+    conn.execute(text("""
+        CREATE TABLE cartones_v2 (
+            id          INTEGER NOT NULL PRIMARY KEY,
+            numero      VARCHAR(20) NOT NULL,
+            pdf_id      INTEGER NOT NULL,
+            pagina_origen INTEGER NOT NULL,
+            ruta_imagen VARCHAR(500) NOT NULL,
+            vendedor_id INTEGER,
+            grupo_id    INTEGER,
+            estado      VARCHAR(20) NOT NULL DEFAULT 'disponible',
+            comprador   VARCHAR(200),
+            telefono_comprador VARCHAR(50),
+            fecha_venta DATETIME,
+            precio      NUMERIC(10, 2),
+            notas       TEXT,
+            fecha_creacion     DATETIME,
+            fecha_actualizacion DATETIME,
+            UNIQUE (numero, grupo_id)
+        )
+    """))
+    conn.execute(text("INSERT INTO cartones_v2 SELECT * FROM cartones"))
+    conn.execute(text("DROP TABLE cartones"))
+    conn.execute(text("ALTER TABLE cartones_v2 RENAME TO cartones"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cartones_numero ON cartones (numero)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cartones_estado ON cartones (estado)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cartones_vendedor_id ON cartones (vendedor_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cartones_grupo_id ON cartones (grupo_id)"))
+    conn.execute(text("PRAGMA foreign_keys=ON"))
+    conn.commit()
+    print('[BINGO] Migración OK: unique(numero) → unique(numero, grupo_id)', flush=True)
 
 
 def _crear_admin_inicial():
