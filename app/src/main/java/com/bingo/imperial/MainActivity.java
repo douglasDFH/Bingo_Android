@@ -40,7 +40,10 @@ public class MainActivity extends AppCompatActivity {
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setTitle("Bingo Supremo");
+        String username   = session.getUsername();
+        String rolDisplay = esAdmin ? "Administrador" : "Vendedor";
+        getSupportActionBar().setTitle("Bienvenido, " + username);
+        getSupportActionBar().setSubtitle(rolDisplay);
 
         swipeRefresh    = findViewById(R.id.swipeRefresh);
         errorCard       = findViewById(R.id.errorCard);
