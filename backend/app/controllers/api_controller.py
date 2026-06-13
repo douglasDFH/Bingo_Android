@@ -25,25 +25,34 @@ def _usuario_actual():
 
 
 def _disponibles_subq(grupo_id_usuario):
-    """IDs de cartones disponibles globalmente, un ID por número único.
-    Si el usuario tiene grupo, devuelve la versión de su grupo (banner correcto).
-    Si no tiene grupo, devuelve un representante por número (el de menor id).
+    """IDs de cartones disponibles globalmente, uno por número único.
+    Todos los vendedores ven disponibles de TODOS los grupos.
+    Si el usuario tiene grupo, se prioriza su versión (banner correcto).
+    Usa ROW_NUMBER() para seleccionar un representante por número.
     """
+    from sqlalchemy import case as sa_case
+
     occ = db.session.query(Carton.numero).filter(
         Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO])
     ).subquery()
-    if grupo_id_usuario:
-        return db.session.query(Carton.id).filter(
-            Carton.grupo_id == grupo_id_usuario,
-            Carton.estado == Carton.ESTADO_DISPONIBLE,
-            Carton.numero.notin_(occ)
-        )
-    else:
-        min_ids = db.session.query(func.min(Carton.id)).filter(
-            Carton.estado == Carton.ESTADO_DISPONIBLE,
-            Carton.numero.notin_(occ)
-        ).group_by(Carton.numero)
-        return db.session.query(Carton.id).filter(Carton.id.in_(min_ids))
+
+    # Prioridad: grupo del usuario = 0 (primero), cualquier otro grupo = 1
+    priority = (
+        sa_case((Carton.grupo_id == grupo_id_usuario, 0), else_=1)
+        if grupo_id_usuario else Carton.id
+    )
+
+    rn = func.row_number().over(
+        partition_by=Carton.numero,
+        order_by=[priority, Carton.id]
+    ).label('rn')
+
+    inner = db.session.query(Carton.id, rn).filter(
+        Carton.estado == Carton.ESTADO_DISPONIBLE,
+        Carton.numero.notin_(occ)
+    ).subquery()
+
+    return db.session.query(inner.c.id).filter(inner.c.rn == 1)
 
 
 @api_bp.before_request
