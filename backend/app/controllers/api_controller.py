@@ -221,6 +221,7 @@ def buscar_numero():
 
 @api_bp.route('/cartones/<int:carton_id>/vender', methods=['POST'])
 def vender(carton_id):
+    user_id, _ = _usuario_actual()
     carton = Carton.query.get_or_404(carton_id)
     data = request.get_json() or {}
     precio = None
@@ -230,6 +231,7 @@ def vender(carton_id):
         except InvalidOperation:
             return jsonify({'error': 'Precio inválido'}), 400
 
+    carton.vendedor_id = user_id  # quien realizó la venta ve el cartón en su lista
     carton.marcar_vendido(
         comprador=data.get('comprador', ''),
         telefono=data.get('telefono', ''),
@@ -242,8 +244,10 @@ def vender(carton_id):
 
 @api_bp.route('/cartones/<int:carton_id>/reservar', methods=['POST'])
 def reservar(carton_id):
+    user_id, _ = _usuario_actual()
     carton = Carton.query.get_or_404(carton_id)
     data = request.get_json() or {}
+    carton.vendedor_id = user_id  # quien realizó la reserva ve el cartón en su lista
     carton.estado = Carton.ESTADO_RESERVADO
     if data.get('comprador'):
         carton.comprador = data['comprador']
@@ -414,35 +418,32 @@ def _procesar_pdf_async(app, pdf_id, vendedor_id=None, banner_id=None,
             _lock = Lock()
             carton_counter = [0]
 
-            pendientes = []
-
+            # Cartones confirmados en DB (solo cuenta tras commit exitoso)
             cartones_insertados = [0]
+            # Cartones en la sesión actual sin confirmar aún
+            pending_in_session = [0]
 
             def guardar_carton(item):
                 """Llamado por el procesador cada vez que termina una página."""
                 numero = item['numero']
-
-                # Verificar duplicado: por grupo si hay grupo, por pdf si no hay grupo
-                if grupo_id is not None:
-                    existe = Carton.query.filter_by(numero=numero, grupo_id=grupo_id).first()
-                else:
-                    existe = Carton.query.filter_by(numero=numero, pdf_id=pdf.id).first()
-
-                if existe:
-                    print(f'[BINGO] Duplicado omitido: {numero} grupo_id={grupo_id}', flush=True)
-                    return
-
-                with _lock:
-                    idx = carton_counter[0]
-                    carton_counter[0] += 1
-
-                if asignados:
-                    assigned_user = asignados[idx % len(asignados)]
-                    assigned_vendedor_id = assigned_user.id
-                else:
-                    assigned_vendedor_id = vendedor_id
-
                 try:
+                    # Verificar duplicado dentro del try para que los errores de BD se registren
+                    if grupo_id is not None:
+                        existe = Carton.query.filter_by(numero=numero, grupo_id=grupo_id).first()
+                    else:
+                        existe = Carton.query.filter_by(numero=numero, pdf_id=pdf.id).first()
+
+                    if existe:
+                        print(f'[BINGO] Duplicado omitido: {numero} grupo_id={grupo_id}', flush=True)
+                        return
+
+                    with _lock:
+                        idx = carton_counter[0]
+                        carton_counter[0] += 1
+
+                    assigned_vendedor_id = (asignados[idx % len(asignados)].id
+                                            if asignados else vendedor_id)
+
                     db.session.add(Carton(
                         numero=numero,
                         pdf_id=pdf.id,
@@ -452,13 +453,17 @@ def _procesar_pdf_async(app, pdf_id, vendedor_id=None, banner_id=None,
                         vendedor_id=assigned_vendedor_id,
                         grupo_id=grupo_id,
                     ))
-                    cartones_insertados[0] += 1
-                    pendientes.append(1)
-                    if len(pendientes) % 5 == 0:
+                    pending_in_session[0] += 1
+
+                    if pending_in_session[0] >= 5:
                         db.session.commit()
+                        cartones_insertados[0] += pending_in_session[0]
+                        pending_in_session[0] = 0  # Lote confirmado, reiniciar
+
                 except Exception as e_ins:
                     db.session.rollback()
-                    print(f'[BINGO] ERROR insertando carton {numero} grupo={grupo_id}: {e_ins}', flush=True)
+                    pending_in_session[0] = 0  # Sesión limpiada por rollback
+                    print(f'[BINGO] ERROR carton {numero} grupo={grupo_id}: {e_ins}', flush=True)
 
             def on_error(item):
                 pdf.paginas_error = (pdf.paginas_error or 0) + 1
@@ -471,13 +476,22 @@ def _procesar_pdf_async(app, pdf_id, vendedor_id=None, banner_id=None,
                 error_cb=on_error,
             )
 
-            # Usar el contador real de inserciones en DB, no el de páginas procesadas
+            # Confirmar cartones que quedaron en la sesión (último lote < 5)
+            if pending_in_session[0] > 0:
+                try:
+                    db.session.commit()
+                    cartones_insertados[0] += pending_in_session[0]
+                    pending_in_session[0] = 0
+                except Exception as e_fin:
+                    db.session.rollback()
+                    print(f'[BINGO] ERROR commit final PDF {pdf_id}: {e_fin}', flush=True)
+
             pdf.total_paginas = resultado['total']
             pdf.paginas_ok = cartones_insertados[0]
             pdf.paginas_error = len(resultado['error'])
             pdf.estado = 'completado' if not resultado['error'] else 'completado_con_errores'
             db.session.commit()
-            print(f'[BINGO] PDF {pdf_id} listo: {pdf.paginas_ok} cartones insertados '
+            print(f'[BINGO] PDF {pdf_id} listo: {pdf.paginas_ok} cartones en DB '
                   f'de {pdf.total_paginas} páginas, {pdf.paginas_error} errores', flush=True)
 
         except Exception as e:

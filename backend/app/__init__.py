@@ -20,6 +20,16 @@ def create_app(config_class=Config):
         os.makedirs(folder, exist_ok=True)
 
     db.init_app(app)
+
+    # SQLite WAL mode: permite lecturas concurrentes mientras un hilo escribe
+    from sqlalchemy import event as sa_event
+
+    with app.app_context():
+        @sa_event.listens_for(db.engine, 'connect')
+        def set_sqlite_wal(dbapi_con, con_record):
+            dbapi_con.execute('pragma journal_mode=WAL')
+            dbapi_con.execute('pragma synchronous=NORMAL')
+
     JWTManager(app)
 
     from .controllers.main_controller import main_bp
