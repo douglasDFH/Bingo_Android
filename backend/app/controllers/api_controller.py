@@ -24,6 +24,28 @@ def _usuario_actual():
     return int(get_jwt_identity()), get_jwt().get('rol', '')
 
 
+def _disponibles_subq(grupo_id_usuario):
+    """IDs de cartones disponibles globalmente, un ID por número único.
+    Si el usuario tiene grupo, devuelve la versión de su grupo (banner correcto).
+    Si no tiene grupo, devuelve un representante por número (el de menor id).
+    """
+    occ = db.session.query(Carton.numero).filter(
+        Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO])
+    ).subquery()
+    if grupo_id_usuario:
+        return db.session.query(Carton.id).filter(
+            Carton.grupo_id == grupo_id_usuario,
+            Carton.estado == Carton.ESTADO_DISPONIBLE,
+            Carton.numero.notin_(occ)
+        )
+    else:
+        min_ids = db.session.query(func.min(Carton.id)).filter(
+            Carton.estado == Carton.ESTADO_DISPONIBLE,
+            Carton.numero.notin_(occ)
+        ).group_by(Carton.numero)
+        return db.session.query(Carton.id).filter(Carton.id.in_(min_ids))
+
+
 @api_bp.before_request
 @jwt_required()
 def require_auth():
@@ -56,19 +78,10 @@ def dashboard():
         usuario = User.query.get(user_id)
         grupo_id = usuario.grupo_id if usuario else None
 
-        # Disponibles: del grupo pero excluyendo números ocupados en cualquier grupo
-        if grupo_id:
-            occupied_subq = db.session.query(Carton.numero).filter(
-                Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO])
-            ).subquery()
-            disponibles = Carton.query.filter(
-                Carton.grupo_id == grupo_id,
-                Carton.estado == Carton.ESTADO_DISPONIBLE,
-                Carton.numero.notin_(occupied_subq)
-            ).count()
-        else:
-            disponibles = Carton.query.filter_by(
-                vendedor_id=user_id, estado=Carton.ESTADO_DISPONIBLE).count()
+        # Disponibles: globales (no ocupados en ningún grupo), versión del grupo del usuario
+        disponibles = Carton.query.filter(
+            Carton.id.in_(_disponibles_subq(grupo_id))
+        ).count()
 
         # Reservados y vendidos: solo los propios
         reservados = Carton.query.filter_by(vendedor_id=user_id, estado=Carton.ESTADO_RESERVADO).count()
@@ -118,43 +131,26 @@ def cartones():
         grupo_id_usuario = usuario.grupo_id if usuario else None
 
         if estado == Carton.ESTADO_DISPONIBLE:
-            if grupo_id_usuario:
-                # Disponibles del grupo, excluyendo números ocupados en cualquier grupo
-                occ = db.session.query(Carton.numero).filter(
-                    Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO])
-                ).subquery()
-                query = query.filter(
-                    Carton.grupo_id == grupo_id_usuario,
-                    Carton.estado == Carton.ESTADO_DISPONIBLE,
-                    Carton.numero.notin_(occ)
-                )
-            else:
-                query = query.filter(Carton.vendedor_id == user_id,
-                                     Carton.estado == Carton.ESTADO_DISPONIBLE)
+            # Disponibles globales: todos los números no ocupados en ningún grupo,
+            # mostrando la versión del grupo del usuario (banner correcto)
+            query = Carton.query.filter(
+                Carton.id.in_(_disponibles_subq(grupo_id_usuario))
+            )
         elif estado in (Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO):
-            # Reservados y vendidos: solo propios
+            # Reservados y vendidos: solo los propios del usuario
             query = query.filter(Carton.vendedor_id == user_id, Carton.estado == estado)
         else:
-            # Todos: disponibles del grupo (sin ocupados) + propios reservados/vendidos
-            if grupo_id_usuario:
-                occ = db.session.query(Carton.numero).filter(
-                    Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO])
-                ).subquery()
-                query = query.filter(
-                    or_(
-                        and_(
-                            Carton.grupo_id == grupo_id_usuario,
-                            Carton.estado == Carton.ESTADO_DISPONIBLE,
-                            Carton.numero.notin_(occ)
-                        ),
-                        and_(
-                            Carton.vendedor_id == user_id,
-                            Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO])
-                        )
+            # Todos: disponibles globales + propios reservados/vendidos
+            avail_ids = _disponibles_subq(grupo_id_usuario)
+            query = Carton.query.filter(
+                or_(
+                    Carton.id.in_(avail_ids),
+                    and_(
+                        Carton.vendedor_id == user_id,
+                        Carton.estado.in_([Carton.ESTADO_RESERVADO, Carton.ESTADO_VENDIDO])
                     )
                 )
-            else:
-                query = query.filter(Carton.vendedor_id == user_id)
+            )
 
     if estado and rol == User.ROL_ADMIN:
         query = query.filter(Carton.estado == estado)
@@ -200,11 +196,13 @@ def buscar_numero():
 
     if carton_occ:
         vendedor = User.query.get(carton_occ.vendedor_id) if carton_occ.vendedor_id else None
+        grupo = Grupo.query.get(vendedor.grupo_id) if vendedor and vendedor.grupo_id else None
         return jsonify({
             'encontrado': True,
             'disponible': False,
             'estado': carton_occ.estado,
             'vendedor': vendedor.username if vendedor else 'Desconocido',
+            'grupo': grupo.nombre if grupo else '',
             'comprador': carton_occ.comprador or '',
         })
 

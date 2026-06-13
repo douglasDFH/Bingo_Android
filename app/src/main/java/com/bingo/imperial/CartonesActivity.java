@@ -159,13 +159,16 @@ public class CartonesActivity extends AppCompatActivity {
                     try {
                         JSONObject j = new JSONObject(body);
                         if (!j.optBoolean("disponible", true)) {
-                            String estado   = j.optString("estado", "");
-                            String vendedor = j.optString("vendedor", "Desconocido");
+                            String estado    = j.optString("estado", "");
+                            String vendedor  = j.optString("vendedor", "Desconocido");
+                            String grupo     = j.optString("grupo", "");
                             String comprador = j.optString("comprador", "");
 
                             String accion = estado.equals("vendido") ? "vendido" : "reservado";
                             StringBuilder msg = new StringBuilder(
                                     "El cartón " + numero + " fue " + accion + " por: " + vendedor);
+                            if (!grupo.isEmpty())
+                                msg.append("\nGrupo: ").append(grupo);
                             if (!comprador.isEmpty())
                                 msg.append("\nComprador: ").append(comprador);
 
