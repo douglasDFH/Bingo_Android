@@ -139,18 +139,25 @@ public class CartonDetalleActivity extends AppCompatActivity {
         btnReservar.setVisibility(View.GONE);
         btnLiberar.setVisibility(View.GONE);
 
+        SessionManager sessionDetalle = new SessionManager(this);
+        boolean puedeVender  = sessionDetalle.tienePermiso(SessionManager.PERM_VENDER);
+        boolean puedeReservar = sessionDetalle.tienePermiso(SessionManager.PERM_RESERVAR);
+        boolean puedeLiberar  = sessionDetalle.tienePermiso(SessionManager.PERM_LIBERAR);
+
         switch (estado) {
             case "disponible":
-                btnVender.setVisibility(View.VISIBLE);
-                btnReservar.setVisibility(View.VISIBLE);
+                if (puedeVender)   btnVender.setVisibility(View.VISIBLE);
+                if (puedeReservar) btnReservar.setVisibility(View.VISIBLE);
                 break;
             case "reservado":
-                btnVender.setVisibility(View.VISIBLE);
-                btnLiberar.setVisibility(View.VISIBLE);
+                if (puedeVender)  btnVender.setVisibility(View.VISIBLE);
+                if (puedeLiberar) btnLiberar.setVisibility(View.VISIBLE);
                 break;
             case "vendido":
-                btnLiberar.setVisibility(View.VISIBLE);
-                btnLiberar.setText("Liberar (devolver)");
+                if (puedeLiberar) {
+                    btnLiberar.setVisibility(View.VISIBLE);
+                    btnLiberar.setText("Liberar (devolver)");
+                }
                 break;
         }
 

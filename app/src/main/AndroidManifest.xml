@@ -30,6 +30,7 @@
         <activity android:name=".PDFsActivity" />
         <activity android:name=".BannersActivity" />
         <activity android:name=".GruposActivity" />
+        <activity android:name=".PermisosActivity" />
     </application>
 
 </manifest>

@@ -6,6 +6,7 @@ from flask_jwt_extended import (
 from ..models import db
 from ..models.user import User
 from ..models.grupo import Grupo
+from ..models.permiso import PermisoRol
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -77,7 +78,8 @@ def login():
         identity=str(user.id),
         additional_claims={'rol': user.rol, 'username': user.username}
     )
-    return jsonify({'token': token, 'user': user.to_dict()})
+    permisos = PermisoRol.get_for_rol(user.rol)
+    return jsonify({'token': token, 'user': user.to_dict(), 'permisos': permisos})
 
 
 @auth_bp.route('/me')

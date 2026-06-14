@@ -58,12 +58,21 @@ public class MainActivity extends AppCompatActivity {
         swipeRefresh.setColorSchemeColors(0xFF6C63FF);
         swipeRefresh.setOnRefreshListener(this::cargarDatos);
 
-        findViewById(R.id.btnSubirPDF).setOnClickListener(v ->
-                startActivity(new Intent(this, SubirPDFActivity.class)));
+        // Subir PDF y ver PDFs: solo si tiene permiso
+        android.widget.Button btnSubirPDF = findViewById(R.id.btnSubirPDF);
+        android.widget.Button btnVerPDFs  = findViewById(R.id.btnVerPDFs);
+        if (session.tienePermiso(SessionManager.PERM_SUBIR_PDF)) {
+            btnSubirPDF.setOnClickListener(v ->
+                    startActivity(new Intent(this, SubirPDFActivity.class)));
+            btnVerPDFs.setOnClickListener(v ->
+                    startActivity(new Intent(this, PDFsActivity.class)));
+        } else {
+            btnSubirPDF.setVisibility(android.view.View.GONE);
+            btnVerPDFs.setVisibility(android.view.View.GONE);
+        }
+
         findViewById(R.id.btnVerCartones).setOnClickListener(v ->
                 startActivity(new Intent(this, CartonesActivity.class)));
-        findViewById(R.id.btnVerPDFs).setOnClickListener(v ->
-                startActivity(new Intent(this, PDFsActivity.class)));
         findViewById(R.id.btnBuscar).setOnClickListener(v ->
                 startActivity(new Intent(this, CartonesActivity.class)));
         findViewById(R.id.btnDisponibles).setOnClickListener(v -> {
@@ -80,6 +89,7 @@ public class MainActivity extends AppCompatActivity {
         android.widget.Button btnUsuarios          = findViewById(R.id.btnUsuarios);
         android.widget.Button btnGrupos            = findViewById(R.id.btnGrupos);
         android.widget.Button btnBanners           = findViewById(R.id.btnBanners);
+        android.widget.Button btnPermisos          = findViewById(R.id.btnPermisos);
         android.widget.Button btnMigrarNumeros      = findViewById(R.id.btnMigrarNumeros);
         android.widget.Button btnRegenerarImagenes  = findViewById(R.id.btnRegenerarImagenes);
         android.widget.Button btnResetCartones      = findViewById(R.id.btnResetCartones);
@@ -95,6 +105,10 @@ public class MainActivity extends AppCompatActivity {
             btnBanners.setVisibility(android.view.View.VISIBLE);
             btnBanners.setOnClickListener(v ->
                     startActivity(new Intent(this, BannersActivity.class)));
+
+            btnPermisos.setVisibility(android.view.View.VISIBLE);
+            btnPermisos.setOnClickListener(v ->
+                    startActivity(new Intent(this, PermisosActivity.class)));
 
             btnMigrarNumeros.setVisibility(android.view.View.VISIBLE);
             btnMigrarNumeros.setOnClickListener(v -> confirmarMigracion());

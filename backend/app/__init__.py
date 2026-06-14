@@ -39,6 +39,7 @@ def create_app(config_class=Config):
     from .controllers.auth_controller import auth_bp
     from .controllers.banner_controller import banner_bp
     from .controllers.grupo_controller import grupo_bp
+    from .controllers.permisos_controller import permisos_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(pdf_bp, url_prefix='/pdf')
@@ -47,6 +48,7 @@ def create_app(config_class=Config):
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(banner_bp, url_prefix='/api/banners')
     app.register_blueprint(grupo_bp, url_prefix='/api/grupos')
+    app.register_blueprint(permisos_bp, url_prefix='/api/permisos')
 
     @app.after_request
     def add_cors(response):
@@ -73,6 +75,8 @@ def create_app(config_class=Config):
         db.create_all()
         _migrar_columnas()
         _crear_admin_inicial()
+        from .models.permiso import PermisoRol
+        PermisoRol.seed_defaults()
 
     return app
 

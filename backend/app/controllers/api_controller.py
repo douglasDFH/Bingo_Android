@@ -14,6 +14,7 @@ from ..models.pdf_procesado import PDFProcesado
 from ..models.carton import Carton
 from ..models.user import User
 from ..models.grupo import Grupo
+from ..models.permiso import PermisoRol
 from ..services.pdf_processor import PDFProcessor, PDFProcessorError
 
 api_bp = Blueprint('api', __name__)
@@ -267,6 +268,11 @@ def liberar(carton_id):
 
 @api_bp.route('/subir-pdf', methods=['POST'])
 def subir_pdf():
+    user_id_check, rol_check = _usuario_actual()
+    if rol_check != User.ROL_ADMIN:
+        permisos = PermisoRol.get_for_rol(rol_check)
+        if not permisos.get('subir_pdf', False):
+            return jsonify({'error': 'No tienes permiso para subir PDFs'}), 403
     if 'pdf' not in request.files:
         return jsonify({'error': 'No se envió ningún archivo'}), 400
 
@@ -681,7 +687,7 @@ def upload_chunk():
 @api_bp.route('/pdf-completar', methods=['POST'])
 def upload_finalize():
     try:
-        data      = request.get_json(force=True) or {}
+        data = request.get_json(force=True) or {}
     except Exception:
         data = {}
     upload_id = data.get('upload_id')
@@ -694,9 +700,14 @@ def upload_finalize():
         return jsonify({'error': 'Upload no encontrado. Puede que el contenedor se reinicio.'}), 404
 
     try:
-        user_id, _ = _usuario_actual()
+        user_id, rol_check = _usuario_actual()
     except Exception as e:
         return jsonify({'error': f'Auth error: {e}'}), 401
+
+    if rol_check != User.ROL_ADMIN:
+        permisos = PermisoRol.get_for_rol(rol_check)
+        if not permisos.get('subir_pdf', False):
+            return jsonify({'error': 'No tienes permiso para subir PDFs'}), 403
 
     banner_id = data.get('banner_id')
     if banner_id is not None:

@@ -72,8 +72,26 @@ public class LoginActivity extends AppCompatActivity {
                             JSONObject json = new JSONObject(response);
                             String token = json.getString("token");
                             JSONObject user = json.getJSONObject("user");
-                            new SessionManager(LoginActivity.this)
-                                    .guardarSesion(token, user.getString("username"), user.getString("rol"), user.getInt("id"));
+                            SessionManager session = new SessionManager(LoginActivity.this);
+                            session.guardarSesion(token, user.getString("username"),
+                                    user.getString("rol"), user.getInt("id"));
+
+                            // Guardar permisos recibidos del servidor
+                            JSONObject permisos = json.optJSONObject("permisos");
+                            if (permisos != null) {
+                                StringBuilder csv = new StringBuilder();
+                                org.json.JSONArray keys = permisos.names();
+                                if (keys != null) {
+                                    for (int i = 0; i < keys.length(); i++) {
+                                        String key = keys.getString(i);
+                                        if (permisos.optBoolean(key, false)) {
+                                            if (csv.length() > 0) csv.append(",");
+                                            csv.append(key);
+                                        }
+                                    }
+                                }
+                                session.guardarPermisos(csv.toString());
+                            }
                             irAMain();
                         } catch (Exception e) {
                             mostrarError("Error al procesar respuesta");
