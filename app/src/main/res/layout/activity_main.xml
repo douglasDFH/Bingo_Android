@@ -232,6 +232,16 @@
                         android:backgroundTint="#B45309"
                         android:textColor="#fff"
                         android:visibility="gone"
+                        android:layout_marginBottom="10dp"
+                        android:padding="14dp" />
+
+                    <Button android:id="@+id/btnResetCartones"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="🗑 Limpiar BD (borrar cartones y PDFs)"
+                        android:backgroundTint="#DC2626"
+                        android:textColor="#fff"
+                        android:visibility="gone"
                         android:layout_marginBottom="32dp"
                         android:padding="14dp" />
 

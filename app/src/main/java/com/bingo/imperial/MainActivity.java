@@ -82,6 +82,7 @@ public class MainActivity extends AppCompatActivity {
         android.widget.Button btnBanners           = findViewById(R.id.btnBanners);
         android.widget.Button btnMigrarNumeros      = findViewById(R.id.btnMigrarNumeros);
         android.widget.Button btnRegenerarImagenes  = findViewById(R.id.btnRegenerarImagenes);
+        android.widget.Button btnResetCartones      = findViewById(R.id.btnResetCartones);
         if (esAdmin) {
             btnUsuarios.setVisibility(android.view.View.VISIBLE);
             btnUsuarios.setOnClickListener(v ->
@@ -100,6 +101,9 @@ public class MainActivity extends AppCompatActivity {
 
             btnRegenerarImagenes.setVisibility(android.view.View.VISIBLE);
             btnRegenerarImagenes.setOnClickListener(v -> confirmarRegenerarImagenes());
+
+            btnResetCartones.setVisibility(android.view.View.VISIBLE);
+            btnResetCartones.setOnClickListener(v -> confirmarResetCartones());
         }
 
         cargarDatos();
@@ -278,6 +282,58 @@ public class MainActivity extends AppCompatActivity {
                             .show();
                     btn.setEnabled(true);
                     btn.setText("🔢 Migrar cartones a 5 dígitos");
+                });
+            }
+        });
+    }
+
+    private void confirmarResetCartones() {
+        new AlertDialog.Builder(this)
+                .setTitle("⚠️ Limpiar base de datos")
+                .setMessage("Esto eliminará TODOS los cartones y PDFs cargados.\n\n" +
+                        "Los usuarios, grupos y banners se conservan.\n\n" +
+                        "Esta acción no se puede deshacer. ¿Continuar?")
+                .setPositiveButton("Sí, borrar todo", (d, w) -> ejecutarResetCartones())
+                .setNegativeButton("Cancelar", null)
+                .show();
+    }
+
+    private void ejecutarResetCartones() {
+        android.widget.Button btn = findViewById(R.id.btnResetCartones);
+        btn.setEnabled(false);
+        btn.setText("Limpiando...");
+
+        ApiClient.post("/admin/reset-cartones", "{}", new ApiClient.Callback() {
+            @Override
+            public void onSuccess(String body) {
+                handler.post(() -> {
+                    try {
+                        org.json.JSONObject j = new org.json.JSONObject(body);
+                        String msg = j.optString("mensaje", "BD limpiada.");
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("BD limpiada ✅")
+                                .setMessage(msg)
+                                .setPositiveButton("OK", (d, w) -> cargarDatos())
+                                .show();
+                    } catch (Exception e) {
+                        Toast.makeText(MainActivity.this, "BD limpiada", Toast.LENGTH_SHORT).show();
+                        cargarDatos();
+                    }
+                    btn.setEnabled(true);
+                    btn.setText("🗑 Limpiar BD (borrar cartones y PDFs)");
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                handler.post(() -> {
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setTitle("Error")
+                            .setMessage("No se pudo limpiar: " + error)
+                            .setPositiveButton("OK", null)
+                            .show();
+                    btn.setEnabled(true);
+                    btn.setText("🗑 Limpiar BD (borrar cartones y PDFs)");
                 });
             }
         });

@@ -596,6 +596,61 @@ def migrar_numeros():
     return jsonify({'ok': True, 'mensaje': 'Sin cambios pendientes.'})
 
 
+# ── Reset completo de cartones y PDFs ────────────────────────────────────────
+
+@api_bp.route('/admin/reset-cartones', methods=['POST'])
+def reset_cartones():
+    """Borra todos los cartones y PDFs. Conserva usuarios, grupos y banners."""
+    _, rol = _usuario_actual()
+    if rol != User.ROL_ADMIN:
+        return jsonify({'error': 'Solo admin'}), 403
+
+    total_cartones = Carton.query.count()
+    total_pdfs     = PDFProcesado.query.count()
+
+    # Recopilar rutas antes de borrar
+    carpetas_imagenes = [p.carpeta_imagenes for p in PDFProcesado.query.all()
+                         if p.carpeta_imagenes]
+    rutas_pdf         = [p.ruta_archivo for p in PDFProcesado.query.all()
+                         if p.ruta_archivo]
+
+    # Borrar registros de BD
+    Carton.query.delete()
+    PDFProcesado.query.delete()
+    db.session.commit()
+
+    # Borrar archivos de imágenes generadas
+    carpetas_borradas = 0
+    for carpeta in carpetas_imagenes:
+        if os.path.isdir(carpeta):
+            shutil.rmtree(carpeta, ignore_errors=True)
+            carpetas_borradas += 1
+
+    # Borrar archivos PDF subidos
+    pdfs_borrados = 0
+    for ruta in rutas_pdf:
+        if ruta and os.path.isfile(ruta):
+            try:
+                os.remove(ruta)
+                pdfs_borrados += 1
+            except Exception:
+                pass
+
+    # Limpiar carpeta de chunks huérfanos
+    chunks_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], 'chunks')
+    if os.path.isdir(chunks_dir):
+        shutil.rmtree(chunks_dir, ignore_errors=True)
+
+    print(f'[BINGO] RESET: {total_cartones} cartones y {total_pdfs} PDFs eliminados', flush=True)
+    return jsonify({
+        'ok': True,
+        'cartones_eliminados': total_cartones,
+        'pdfs_eliminados': total_pdfs,
+        'mensaje': f'BD limpia. {total_cartones} cartones y {total_pdfs} PDFs eliminados. '
+                   f'Usuarios, grupos y banners conservados.',
+    })
+
+
 # ── Chunked upload ────────────────────────────────────────────────────────────
 
 @api_bp.route('/pdf-parte', methods=['POST'])
